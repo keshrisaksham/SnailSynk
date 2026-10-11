@@ -1,0 +1,115 @@
+/* static/css/text-preview.css - the "open preview in a new tab" page. common.css styles the app shell as a
+   fixed-height flex layout; this page is a normal scrolling document, so undo that and reuse .markdown-preview. */
+html,
+body.text-preview-page {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+    display: block;
+}
+
+body.text-preview-page {
+    background-image: none;
+    background-color: var(--c-bg);
+}
+
+.tp-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    background: var(--c-surface);
+    border-bottom: 1px solid var(--c-border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.tp-title {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--c-text-main);
+}
+
+.tp-source {
+    font-size: 0.78rem;
+    color: var(--c-text-muted);
+    padding: 0.15rem 0.55rem;
+    border: 1px solid var(--c-border);
+    border-radius: 999px;
+}
+
+.tp-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.tp-toggle {
+    display: inline-flex;
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.tp-toggle button {
+    padding: 0.45rem 0.9rem;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--c-text-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.tp-toggle button.active {
+    background: var(--c-primary);
+    color: var(--c-primary-text);
+}
+
+.tp-main {
+    max-width: 960px;
+    margin: 1.5rem auto 3rem;
+    padding: 0 1rem;
+}
+
+/* the rendered text: the same look as the in-page preview, but as tall as it needs to be */
+.markdown-preview.tp-content {
+    flex: none;
+    min-height: 40vh;
+    overflow: visible;
+    padding: 1.5rem 2rem;
+    background: var(--c-surface);
+}
+
+.tp-raw {
+    margin: 0;
+    padding: 1.5rem 2rem;
+    font-family: var(--font-mono);
+    font-size: 0.88rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--c-text-main);
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius);
+}
+
+.tp-raw[hidden],
+.tp-content[hidden] {
+    display: none;
+}
+
+@media (max-width: 600px) {
+    .markdown-preview.tp-content,
+    .tp-raw {
+        padding: 1rem;
+    }
+}

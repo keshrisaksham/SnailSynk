@@ -5,6 +5,7 @@ python-dotenv
 qrcode
 rich
 gevent
+gevent-websocket
 pyperclip
-google-generativeai
+google-genai
 cryptography

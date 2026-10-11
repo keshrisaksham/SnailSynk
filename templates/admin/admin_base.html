@@ -25,11 +25,13 @@
             document.documentElement.classList.add('accent-' + accent);
         })();
     </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/glass.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/background-fx.css') }}">
 </head>
 
-<body>
+<body class="glass admin-page">
     <header class="app-header">
-        <div class="app-container" style=" margin-left: 5%; max-width: -webkit-fill-available;">
+        <div class="app-container" style="max-width: inherit;">
             <a href="{{ url_for('main.index') }}" class="logo">
                 <img src="{{ url_for('static', filename='icon/favicon.png') }}" alt="SnailSynk Icon"
                     style="width: 40px; height: 40px;">
@@ -280,13 +282,16 @@
 
     <!-- Shared Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.1/dist/apexcharts.min.js"></script>
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/purify.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
     <!-- MODIFIED: Replaced old libraries with Toast UI Editor -->
     <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
     <script src="{{ url_for('static', filename='js/backbone.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/markdown-preview.js') }}"></script>
     <script src="{{ url_for('static', filename='js/index.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin-notes.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin-dashboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/background-fx.js') }}"></script>
 </body>
 
 </html>

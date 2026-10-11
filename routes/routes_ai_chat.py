@@ -1,18 +1,35 @@
 # routes/routes_ai_chat.py
 import os
+import re
 import json
 import uuid
+import base64
 import logging
 import time
 from pathlib import Path
 from flask import Blueprint, request, jsonify, session, render_template, Response, stream_with_context
-import google.generativeai as genai
+from google import genai
+from google.genai import types
+from backbone.rate_limiter import RateLimiter
+from backbone.storage import atomic_write_json
 
 ai_chat_bp = Blueprint('ai_chat', __name__, template_folder='../templates')
 
 # Action logger will be initialized by the main app
 action_logger = None
 _conversations_dir = None
+_gemini_client = None
+
+GEMINI_MODEL = 'gemini-2.5-flash'
+
+# The chat endpoints are open to everyone on the network but spend the owner's API quota.
+ai_limiter = RateLimiter(max_attempts=20, window=60, lockout=60)   # 20 requests / minute / IP
+MAX_MESSAGE_CHARS = 20_000
+MAX_HISTORY_ENTRIES = 60
+MAX_IMAGES = 4
+MAX_IMAGE_B64_CHARS = 8 * 1024 * 1024
+ALLOWED_IMAGE_TYPES = {'image/png', 'image/jpeg', 'image/webp', 'image/gif'}
+CONV_ID_RE = re.compile(r'^[0-9a-f]{8}$')
 
 def init_ai_chat_routes(al, instance_path=None):
     """Initialize the blueprint with managers from the main app."""
@@ -28,18 +45,77 @@ def _get_conversations_dir():
         return _conversations_dir
     return None
 
-def get_gemini_model():
-    """Get or initialize the Gemini model. Called at runtime to ensure .env is loaded."""
+def get_gemini_client():
+    """Get or initialize the Gemini client. Called at runtime to ensure .env is loaded."""
+    global _gemini_client
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
     if not GEMINI_API_KEY:
         return None
     
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        return genai.GenerativeModel('gemini-2.5-flash')
+        if _gemini_client is None:
+            _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+        return _gemini_client
     except Exception as e:
-        logging.error(f"Failed to initialize Gemini model: {e}")
+        logging.error(f"Failed to initialize Gemini client: {e}")
         return None
+
+def _build_history(history_list):
+    """Convert a list of {role, parts} dicts to google.genai types.Content objects."""
+    contents = []
+    for entry in history_list:
+        role = entry.get('role', 'user')
+        parts_data = entry.get('parts', [])
+        parts = []
+        for p in parts_data:
+            if isinstance(p, dict) and 'text' in p:
+                parts.append(types.Part.from_text(text=p['text']))
+            elif isinstance(p, str):
+                parts.append(types.Part.from_text(text=p))
+        if parts:
+            contents.append(types.Content(role=role, parts=parts))
+    return contents
+
+
+def _friendly_error(e):
+    """Map upstream errors to a safe message - never echo raw exception text to the browser."""
+    upper = str(e).upper()
+    if "API_KEY" in upper or "API KEY" in upper:
+        return "Invalid API key. Please check your GEMINI_API_KEY configuration."
+    if "QUOTA" in upper or "RESOURCE_EXHAUSTED" in upper:
+        return "API quota exceeded. Please try again later."
+    if "SAFETY" in upper:
+        return "Message blocked by safety filters. Please rephrase your message."
+    return "The AI service returned an error. Please try again."
+
+def _throttle():
+    wait = ai_limiter.hit(request.remote_addr)
+    if wait:
+        return jsonify(success=False, error=f"Too many requests. Try again in {wait} seconds."), 429
+    return None
+
+def _validate_history(history):
+    """Return a sanitized history list or None if malformed/too large."""
+    if not isinstance(history, list) or len(history) > MAX_HISTORY_ENTRIES:
+        return None
+    clean = []
+    for entry in history:
+        if not isinstance(entry, dict) or entry.get('role', 'user') not in ('user', 'model'):
+            return None
+        parts = entry.get('parts', [])
+        if not isinstance(parts, list):
+            return None
+        total = sum(len(p.get('text', '')) if isinstance(p, dict) and isinstance(p.get('text', ''), str) else (len(p) if isinstance(p, str) else 0) for p in parts)
+        if total > MAX_MESSAGE_CHARS * 2:
+            return None
+        clean.append(entry)
+    return clean
+
+def _get_conv_path(conv_dir, conv_id):
+    """Path of a conversation file, or None if the id is not one we generated."""
+    if not CONV_ID_RE.match(conv_id or ''):
+        return None
+    return os.path.join(conv_dir, f"{conv_id}.json")
 
 
 # ─── Page Route ───────────────────────────────────────────────────────────────
@@ -56,28 +132,38 @@ def chat_page():
 @ai_chat_bp.route('/api/ai-chat', methods=['POST'])
 def ai_chat():
     """Handle AI chat messages using Google Gemini."""
-    model = get_gemini_model()
+    client = get_gemini_client()
     
-    if not model:
+    if not client:
         return jsonify(
             success=False, 
             error="AI chat is not configured. Please add GEMINI_API_KEY to your environment variables."
         ), 503
     
-    data = request.get_json()
-    if not data or 'message' not in data:
+    limited = _throttle()
+    if limited: return limited
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not isinstance(data.get('message'), str):
         return jsonify(success=False, error="Invalid request. Message is required."), 400
     
     user_message = data['message'].strip()
     if not user_message:
         return jsonify(success=False, error="Message cannot be empty."), 400
+    if len(user_message) > MAX_MESSAGE_CHARS:
+        return jsonify(success=False, error="Message is too long."), 413
     
     # Get conversation history if provided
-    history = data.get('history', [])
+    history = _validate_history(data.get('history', []))
+    if history is None:
+        return jsonify(success=False, error="Invalid conversation history."), 400
     
     try:
+        # Build history as types.Content objects
+        chat_history = _build_history(history)
+        
         # Start a chat session with history
-        chat = model.start_chat(history=history)
+        chat = client.chats.create(model=GEMINI_MODEL, history=chat_history)
         
         # Send the message and get response
         response = chat.send_message(user_message)
@@ -101,19 +187,7 @@ def ai_chat():
     
     except Exception as e:
         logging.error(f"Error in AI chat: {e}")
-        error_message = str(e)
-        
-        # Provide user-friendly error messages
-        if "API_KEY" in error_message.upper():
-            error_message = "Invalid API key. Please check your GEMINI_API_KEY configuration."
-        elif "QUOTA" in error_message.upper():
-            error_message = "API quota exceeded. Please try again later."
-        elif "SAFETY" in error_message.upper():
-            error_message = "Message blocked by safety filters. Please rephrase your message."
-        else:
-            error_message = f"AI service error: {error_message}"
-        
-        return jsonify(success=False, error=error_message), 500
+        return jsonify(success=False, error=_friendly_error(e)), 500
 
 
 # ─── Streaming API ────────────────────────────────────────────────────────────
@@ -121,49 +195,64 @@ def ai_chat():
 @ai_chat_bp.route('/api/ai-chat/stream', methods=['POST'])
 def ai_chat_stream():
     """Stream AI chat responses using Server-Sent Events (SSE)."""
-    model = get_gemini_model()
+    client = get_gemini_client()
     
-    if not model:
+    if not client:
         return jsonify(
             success=False,
             error="AI chat is not configured. Please add GEMINI_API_KEY to your environment variables."
         ), 503
     
-    data = request.get_json()
-    if not data or 'message' not in data:
+    limited = _throttle()
+    if limited: return limited
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not isinstance(data.get('message'), str):
         return jsonify(success=False, error="Invalid request. Message is required."), 400
     
     user_message = data['message'].strip()
-    if not user_message and not data.get('images'):
+    images = data.get('images') or []  # [{ "base64": "...", "mimeType": "image/png" }, ...]
+    if not user_message and not images:
         return jsonify(success=False, error="Message cannot be empty."), 400
-    
-    history = data.get('history', [])
-    images = data.get('images', [])  # [{ "base64": "...", "mimeType": "image/png" }, ...]
+    if len(user_message) > MAX_MESSAGE_CHARS:
+        return jsonify(success=False, error="Message is too long."), 413
+
+    history = _validate_history(data.get('history', []))
+    if history is None:
+        return jsonify(success=False, error="Invalid conversation history."), 400
+    if not isinstance(images, list) or len(images) > MAX_IMAGES:
+        return jsonify(success=False, error=f"At most {MAX_IMAGES} images are allowed."), 400
+    decoded_images = []
+    for img in images:
+        if not isinstance(img, dict) or img.get('mimeType', 'image/png') not in ALLOWED_IMAGE_TYPES \
+                or not isinstance(img.get('base64', ''), str) or len(img.get('base64', '')) > MAX_IMAGE_B64_CHARS:
+            return jsonify(success=False, error="Unsupported or oversized image."), 400
+        try:
+            decoded_images.append((base64.b64decode(img.get('base64', ''), validate=True), img.get('mimeType', 'image/png')))
+        except ValueError:
+            return jsonify(success=False, error="Invalid image data."), 400
     
     def generate():
         try:
-            chat = model.start_chat(history=history)
+            # Build history as types.Content objects
+            chat_history = _build_history(history)
+            
+            chat = client.chats.create(model=GEMINI_MODEL, history=chat_history)
             
             # Build multimodal parts
             parts = []
             if user_message:
-                parts.append(user_message)
-            for img in images:
-                parts.append({
-                    "inline_data": {
-                        "mime_type": img.get("mimeType", "image/png"),
-                        "data": img.get("base64", "")
-                    }
-                })
+                parts.append(types.Part.from_text(text=user_message))
+            for img_bytes, img_mime in decoded_images:
+                parts.append(types.Part.from_bytes(data=img_bytes, mime_type=img_mime))
             
             # If no text was provided with images, add a default prompt
-            if not user_message and images:
-                parts.insert(0, "Describe this image.")
+            if not user_message and decoded_images:
+                parts.insert(0, types.Part.from_text(text="Describe this image."))
             
-            response = chat.send_message(parts, stream=True)
-            
+            # Use send_message_stream for streaming
             full_response = []
-            for chunk in response:
+            for chunk in chat.send_message_stream(parts):
                 if chunk.text:
                     full_response.append(chunk.text)
                     # Send each chunk as an SSE event
@@ -186,16 +275,7 @@ def ai_chat_stream():
                 
         except Exception as e:
             logging.error(f"Error in streaming AI chat: {e}")
-            error_message = str(e)
-            if "API_KEY" in error_message.upper():
-                error_message = "Invalid API key. Please check your GEMINI_API_KEY configuration."
-            elif "QUOTA" in error_message.upper():
-                error_message = "API quota exceeded. Please try again later."
-            elif "SAFETY" in error_message.upper():
-                error_message = "Message blocked by safety filters. Please rephrase your message."
-            else:
-                error_message = f"AI service error: {error_message}"
-            yield f"data: {json.dumps({'type': 'error', 'content': error_message})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'content': _friendly_error(e)})}\n\n"
     
     return Response(
         stream_with_context(generate()),
@@ -250,21 +330,22 @@ def create_conversation():
     if not conv_dir:
         return jsonify(error="Storage not available"), 500
     
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     conv_id = str(uuid.uuid4())[:8]
     now = time.time()
     
     conversation = {
         'id': conv_id,
-        'title': data.get('title', 'New Chat'),
+        'title': str(data.get('title', 'New Chat'))[:200],
         'created_at': now,
         'updated_at': now,
         'messages': []
     }
     
-    filepath = os.path.join(conv_dir, f"{conv_id}.json")
-    with open(filepath, 'w', encoding='utf-8') as f:
-        json.dump(conversation, f, ensure_ascii=False, indent=2)
+    filepath = _get_conv_path(conv_dir, conv_id)
+    if not filepath:
+        return jsonify(error="Conversation not found"), 404
+    atomic_write_json(filepath, conversation)
     
     return jsonify(conversation), 201
 
@@ -278,7 +359,9 @@ def get_conversation(conv_id):
     if not conv_dir:
         return jsonify(error="Storage not available"), 500
     
-    filepath = os.path.join(conv_dir, f"{conv_id}.json")
+    filepath = _get_conv_path(conv_dir, conv_id)
+    if not filepath:
+        return jsonify(error="Conversation not found"), 404
     if not os.path.exists(filepath):
         return jsonify(error="Conversation not found"), 404
     
@@ -287,7 +370,8 @@ def get_conversation(conv_id):
             data = json.load(f)
         return jsonify(data)
     except (json.JSONDecodeError, IOError) as e:
-        return jsonify(error=f"Failed to read conversation: {e}"), 500
+        logging.error(f"Failed to read conversation: {e}")
+        return jsonify(error="Failed to read conversation."), 500
 
 
 @ai_chat_bp.route('/api/conversations/<conv_id>', methods=['PUT'])
@@ -299,7 +383,9 @@ def update_conversation(conv_id):
     if not conv_dir:
         return jsonify(error="Storage not available"), 500
     
-    filepath = os.path.join(conv_dir, f"{conv_id}.json")
+    filepath = _get_conv_path(conv_dir, conv_id)
+    if not filepath:
+        return jsonify(error="Conversation not found"), 404
     if not os.path.exists(filepath):
         return jsonify(error="Conversation not found"), 404
     
@@ -307,17 +393,17 @@ def update_conversation(conv_id):
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
-        update_data = request.get_json() or {}
+        update_data = (request.get_json(silent=True) or {})
         if 'title' in update_data:
-            data['title'] = update_data['title']
+            data['title'] = str(update_data['title'])[:200]
         data['updated_at'] = time.time()
         
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        atomic_write_json(filepath, data)
         
         return jsonify(data)
     except (json.JSONDecodeError, IOError) as e:
-        return jsonify(error=f"Failed to update conversation: {e}"), 500
+        logging.error(f"Failed to update conversation: {e}")
+        return jsonify(error="Failed to update conversation."), 500
 
 
 @ai_chat_bp.route('/api/conversations/<conv_id>', methods=['DELETE'])
@@ -329,7 +415,9 @@ def delete_conversation(conv_id):
     if not conv_dir:
         return jsonify(error="Storage not available"), 500
     
-    filepath = os.path.join(conv_dir, f"{conv_id}.json")
+    filepath = _get_conv_path(conv_dir, conv_id)
+    if not filepath:
+        return jsonify(error="Conversation not found"), 404
     if not os.path.exists(filepath):
         return jsonify(error="Conversation not found"), 404
     
@@ -337,7 +425,8 @@ def delete_conversation(conv_id):
         os.remove(filepath)
         return jsonify(success=True, message="Conversation deleted")
     except IOError as e:
-        return jsonify(error=f"Failed to delete conversation: {e}"), 500
+        logging.error(f"Failed to delete conversation: {e}")
+        return jsonify(error="Failed to delete conversation."), 500
 
 
 @ai_chat_bp.route('/api/conversations/<conv_id>/messages', methods=['PUT'])
@@ -349,7 +438,9 @@ def save_messages(conv_id):
     if not conv_dir:
         return jsonify(error="Storage not available"), 500
     
-    filepath = os.path.join(conv_dir, f"{conv_id}.json")
+    filepath = _get_conv_path(conv_dir, conv_id)
+    if not filepath:
+        return jsonify(error="Conversation not found"), 404
     if not os.path.exists(filepath):
         return jsonify(error="Conversation not found"), 404
     
@@ -357,16 +448,16 @@ def save_messages(conv_id):
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
-        update_data = request.get_json() or {}
+        update_data = (request.get_json(silent=True) or {})
         if 'messages' in update_data:
             data['messages'] = update_data['messages']
         if 'title' in update_data:
-            data['title'] = update_data['title']
+            data['title'] = str(update_data['title'])[:200]
         data['updated_at'] = time.time()
         
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        atomic_write_json(filepath, data)
         
         return jsonify(success=True)
     except (json.JSONDecodeError, IOError) as e:
-        return jsonify(error=f"Failed to save messages: {e}"), 500
+        logging.error(f"Failed to save messages: {e}")
+        return jsonify(error="Failed to save messages."), 500

@@ -218,7 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let html;
         if (typeof marked !== 'undefined') {
             marked.setOptions({ breaks: true, gfm: true });
-            html = marked.parse(processed);
+            html = sanitizeHtml(marked.parse(processed));
         } else {
             html = processed.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
         }
@@ -266,6 +266,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         return html;
+    }
+
+    // Untrusted markdown output is sanitized before our own (trusted) code/math blocks are re-inserted.
+    function sanitizeHtml(html) {
+        if (typeof DOMPurify !== 'undefined') return DOMPurify.sanitize(html);
+        return escapeHtml(html);
     }
 
     function escapeHtml(text) {

@@ -14,7 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadBtn = document.getElementById('downloadBtn');
     const exportPdfBtn = document.getElementById('exportPdfBtn');
     const searchInput = document.getElementById('searchNotes');
-    const contextMenu = document.getElementById('contextMenu');
     const unsavedModal = document.getElementById('unsavedModal');
     const modalSaveBtn = document.getElementById('modalSaveBtn');
     const modalDiscardBtn = document.getElementById('modalDiscardBtn');
@@ -37,39 +36,63 @@ document.addEventListener('DOMContentLoaded', () => {
     const folderPickerMessage = document.getElementById('folderPickerMessage');
 
     // State
-    let quill;
+    let editor;
     let currentNote = null;
     let notes = [];
-    let contextMenuTarget = null;
     let selectedNotes = new Set();
     let draggedNote = null;
     let hasUnsavedChanges = false;
     let originalContent = '';
 
-    // Initialize Quill
-    quill = new Quill('#editor', {
-        theme: 'snow',
-        placeholder: 'Start writing...',
-        modules: {
-            toolbar: [
-                [{ 'header': [1, 2, 3, false] }],
-                [{ 'size': ['small', false, 'large', 'huge'] }],
-                ['bold', 'italic', 'underline', 'strike'],
-                [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-                [{ 'color': [] }, { 'background': [] }],
-                ['blockquote', 'code-block'],
-                ['link', 'image'],
-                ['clean']
-            ]
+    // The Markdown editor (static/js/notes-editor.js)
+    const previewBtn = document.getElementById('previewBtn');
+    const markdownBtn = document.getElementById('markdownBtn');
+
+    editor = NotesEditor.create(document.getElementById('editor'), {
+        onChange: () => {
+            if (!currentNote) return;
+            hasUnsavedChanges = editor.getValue() !== originalContent;
+            editor.setStatus(hasUnsavedChanges ? 'dirty' : 'saved');
+        },
+        onSave: () => { if (currentNote) saveNote(); },
+        onOpenLink: (name) => openWikiLink(name),
+        onModeChange: (mode) => {
+            previewBtn.classList.toggle('active', mode === 'reading');
+            markdownBtn.classList.toggle('active', mode === 'source');
         }
     });
 
-    // Track changes to detect unsaved edits
-    quill.on('text-change', () => {
-        if (currentNote && quill.root.innerHTML !== originalContent) {
-            hasUnsavedChanges = true;
+    // [[Note name]] links: open the note, or offer to create it
+    function findNoteByName(name) {
+        const want = name.trim().toLowerCase().replace(/\.md$/, '');
+        let hit = null;
+        (function walk(items) {
+            for (const it of items || []) {
+                if (it.type === 'folder') walk(it.children);
+                else if (!hit && it.name.replace(/\.md$/i, '').toLowerCase() === want) hit = it.path;
+            }
+        })(rootTree);
+        return hit;
+    }
+
+    async function openWikiLink(name) {
+        const existing = findNoteByName(name);
+        if (existing) {
+            await loadNote(existing);
+            return;
         }
-    });
+        const clean = name.replace(/[\\/]/g, '-').trim();
+        if (!clean) return;
+        const ok = await showConfirmModal('Create note', `"${clean}" doesn't exist yet. Create it?`, { confirmText: 'Create', cancelText: 'Cancel' });
+        if (!ok) return;
+        try {
+            await api('item', 'POST', { path: `${clean}.md`, type: 'file' });
+            await loadNotes();
+            await loadNote(`${clean}.md`);
+        } catch (error) {
+            alert('Failed to create note');
+        }
+    }
 
     // Custom modal for unsaved changes
     function showUnsavedModal() {
@@ -283,6 +306,72 @@ document.addEventListener('DOMContentLoaded', () => {
         return res.json();
     }
 
+    // ----- which folders are closed: kept on the server (instance/notes_ui.json), so the tree looks the same after a
+    // reload or a restart, and in any browser. Folders are open unless closed here.
+    let collapsedFolders = new Set();
+    let collapsedLoaded = false;
+    let saveCollapsedTimer = null;
+
+    function saveCollapsed() {
+        clearTimeout(saveCollapsedTimer);
+        saveCollapsedTimer = setTimeout(() => {
+            api('ui', 'POST', { collapsed: Array.from(collapsedFolders) }).catch(() => { /* the tree still works; it just won't be remembered */ });
+        }, 250);
+    }
+
+    // forget folders that were deleted or renamed
+    function pruneCollapsed() {
+        const existing = new Set();
+        (function walk(items) {
+            for (const it of items || []) {
+                if (it.type === 'folder') { existing.add(it.path); walk(it.children); }
+            }
+        })(rootTree);
+        let changed = false;
+        for (const path of Array.from(collapsedFolders)) {
+            if (!existing.has(path)) { collapsedFolders.delete(path); changed = true; }
+        }
+        if (changed) saveCollapsed();
+    }
+
+    function hasCollapsedAncestor(path) {
+        const parts = path.split('/');
+        for (let i = 1; i < parts.length; i++) {
+            if (collapsedFolders.has(parts.slice(0, i).join('/'))) return true;
+        }
+        return false;
+    }
+
+    // one place decides what is shown: folders that are closed hide their contents, and a search shows every match
+    // (closed or not)
+    function applyVisibility() {
+        const query = searchInput.value.trim().toLowerCase();
+        document.querySelectorAll('#notesList .note-item').forEach((item) => {
+            const path = item.dataset.path || '';
+            if (item.classList.contains('folder')) item.classList.toggle('collapsed', collapsedFolders.has(path));
+            let hide;
+            if (query) {
+                const titleEl = item.querySelector('.note-item-title');
+                const folderEl = item.querySelector('.folder-name');
+                const text = (titleEl ? titleEl.textContent : folderEl ? folderEl.textContent : '').toLowerCase();
+                hide = !text.includes(query);
+            } else {
+                hide = hasCollapsedAncestor(path);
+            }
+            item.classList.toggle('hidden', hide);
+        });
+    }
+
+    // opening a note (a link, a new note, ...) opens the folders it sits in
+    function revealNote(path) {
+        const parts = path.split('/');
+        let changed = false;
+        for (let i = 1; i < parts.length; i++) {
+            if (collapsedFolders.delete(parts.slice(0, i).join('/'))) changed = true;
+        }
+        if (changed) { saveCollapsed(); applyVisibility(); }
+    }
+
     // Load notes list
     let rootTree = [];
     let currentFilter = 'all';
@@ -291,6 +380,11 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const data = await api('tree');
             rootTree = data.tree;
+            if (!collapsedLoaded) {
+                collapsedFolders = new Set(Array.isArray(data.collapsed) ? data.collapsed : []);
+                collapsedLoaded = true;
+            }
+            pruneCollapsed();
             renderNotesList();
             updateFilterDropdown();
         } catch (error) {
@@ -315,14 +409,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             sorted.forEach(item => {
-                const padding = 1 + (level * 1.5); // Base 1rem + 1.5rem per level
 
                 if (item.type === 'folder') {
                     // Check if we should show this folder based on filter
                     if (currentFilter !== 'all' && item.name !== currentFilter && level === 0) return;
 
-                    html += `<div class="note-item folder" data-path="${item.path}" style="padding-left: ${padding}rem">
-                        <span class="folder-icon">📁</span>
+                    html += `<div class="note-item folder" data-path="${item.path}" style="--lvl: ${level}">
+                        <svg class="folder-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        <svg class="folder-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                         <span class="folder-name">${item.name}</span>
                     </div>`;
 
@@ -336,9 +430,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (parts[0] !== currentFilter) return;
                     }
 
-                    html += `<div class="note-item" data-path="${item.path}" data-type="file" style="padding-left: ${padding}rem" draggable="true">
+                    html += `<div class="note-item" data-path="${item.path}" data-type="file" style="--lvl: ${level}" draggable="true">
+                        <svg class="note-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                         <input type="checkbox" class="note-checkbox" data-path="${item.path}">
-                        <div class="note-item-title">${item.name}</div>
+                        <div class="note-item-title" title="${item.name}">${item.name.replace(/\.md$/i, '')}</div>
                     </div>`;
                 }
             });
@@ -346,6 +441,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         renderItems(rootTree);
         notesList.innerHTML = html;
+        closeContextMenu();
+        applyVisibility();
     }
 
     function updateFilterDropdown() {
@@ -397,21 +494,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Search functionality
-    searchInput.addEventListener('input', (e) => {
-        const query = e.target.value.toLowerCase();
-        const items = document.querySelectorAll('.note-item');
-
-        items.forEach(item => {
-            const titleEl = item.querySelector('.note-item-title');
-            const folderNameEl = item.querySelector('.folder-name');
-            let text = '';
-
-            if (titleEl) text = titleEl.textContent.toLowerCase();
-            else if (folderNameEl) text = folderNameEl.textContent.toLowerCase();
-
-            item.classList.toggle('hidden', !text.includes(query));
-        });
-    });
+    searchInput.addEventListener('input', applyVisibility);
 
     // Load note
     async function loadNote(path) {
@@ -432,16 +515,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await api(`note?path=${encodeURIComponent(path)}`);
             currentNote = path;
             noteTitle.value = path.split('/').pop().replace('.md', '');
-            quill.root.innerHTML = data.content || '';
-            originalContent = quill.root.innerHTML; // Store original for change detection
+            // notes written by the old rich-text editor are HTML: convert them to Markdown on the way in
+            const { markdown, converted } = NotesEditor.contentToMarkdown(data.content);
+            editor.setValue(markdown);
+            originalContent = markdown; // Store original for change detection
             hasUnsavedChanges = false;
+            if (converted) editor.setStatus('info', 'Converted to Markdown. Save to keep it.');
+            else editor.setStatus('saved');
 
             editorPlaceholder.style.display = 'none';
             editorContainer.style.display = 'flex';
+            editor.refresh();
 
             document.querySelectorAll('.note-item').forEach(item => {
                 item.classList.toggle('active', item.dataset.path === path);
             });
+            revealNote(path);
 
             // Switch to editor view on mobile
             showMobileEditor();
@@ -456,12 +545,15 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             saveBtn.textContent = 'Saving...';
             saveBtn.disabled = true;
+            editor.setStatus('saving');
+            const markdown = editor.getValue();
             await api('note', 'POST', {
                 path: currentNote,
-                content: quill.root.innerHTML
+                content: markdown
             });
-            originalContent = quill.root.innerHTML; // Update original content after save
+            originalContent = markdown; // Update original content after save
             hasUnsavedChanges = false;
+            editor.setStatus('saved');
             saveBtn.textContent = 'Saved!';
             setTimeout(() => { saveBtn.textContent = 'Save'; }, 1000);
         } catch (error) {
@@ -594,13 +686,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Fetch note content from API
             const data = await api(`note?path=${encodeURIComponent(path)}`);
 
-            // Convert HTML to markdown-like format (simple conversion)
-            let content = data.content || '';
-
-            // Remove HTML tags for basic markdown export
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = content;
-            const markdownContent = tempDiv.textContent || tempDiv.innerText || '';
+            // Notes from the old editor are HTML: hand out proper Markdown either way
+            const markdownContent = NotesEditor.contentToMarkdown(data.content).markdown;
 
             // Create and download markdown file
             const blob = new Blob([markdownContent], { type: 'text/markdown' });
@@ -622,14 +709,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await api(`note?path=${encodeURIComponent(path)}`);
             const filename = path.split('/').pop().replace('.md', '.pdf');
 
-            // Create a styled container for PDF generation
+            // Render the Markdown and style it for the page
             const container = document.createElement('div');
-            container.innerHTML = data.content || '';
+            container.innerHTML = NotesEditor.renderMarkdown(NotesEditor.contentToMarkdown(data.content).markdown);
             container.style.padding = '20px';
             container.style.fontFamily = 'Arial, sans-serif';
             container.style.fontSize = '12pt';
             container.style.lineHeight = '1.6';
-            container.style.color = '#333';
+            container.style.color = '#222';
+            container.style.background = '#fff';
+            container.querySelectorAll('pre').forEach((el) => { el.style.background = '#f3f4f6'; el.style.padding = '10px'; el.style.borderRadius = '6px'; el.style.whiteSpace = 'pre-wrap'; });
+            container.querySelectorAll('code').forEach((el) => { el.style.fontFamily = 'Consolas, monospace'; });
+            container.querySelectorAll('blockquote').forEach((el) => { el.style.borderLeft = '3px solid #bbb'; el.style.margin = '0.8em 0'; el.style.paddingLeft = '12px'; el.style.color = '#555'; });
+            container.querySelectorAll('table').forEach((el) => { el.style.borderCollapse = 'collapse'; });
+            container.querySelectorAll('th, td').forEach((el) => { el.style.border = '1px solid #ccc'; el.style.padding = '4px 8px'; });
+            container.querySelectorAll('img').forEach((el) => { el.style.maxWidth = '100%'; });
 
             const opt = {
                 margin: 15,
@@ -646,57 +740,266 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Context menu
-    function showContextMenu(e, path) {
-        e.preventDefault();
-        contextMenuTarget = path;
-        contextMenu.style.left = `${e.clientX}px`;
-        contextMenu.style.top = `${e.clientY}px`;
-        contextMenu.classList.add('visible');
+    // ===== Right-click menu =====
+    // One menu for files, folders, several selected notes and empty space, in the same style as the Download Directory's
+    // menu on the home page. Shift + right-click still gives the browser's own menu.
+    const ctxMenu = document.createElement('div');
+    ctxMenu.id = 'notesContextMenu';
+    ctxMenu.className = 'dir-context-menu';
+    ctxMenu.setAttribute('role', 'menu');
+    ctxMenu.tabIndex = -1;
+    ctxMenu.hidden = true;
+    document.body.appendChild(ctxMenu);
+    let ctxTargetRow = null;
+
+    const ICONS = {
+        open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+        newNote: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="18"/><line x1="9" y1="15" x2="15" y2="15"/></svg>',
+        newFolder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>',
+        folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+        rename: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>',
+        duplicate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+        download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+        pdf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15h6"/><path d="M9 11h6"/></svg>',
+        trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
+        expand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>',
+        collapse: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 11 12 6 17 11"/><polyline points="7 18 12 13 17 18"/></svg>',
+        refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>'
+    };
+
+    function closeContextMenu() {
+        if (ctxMenu.hidden) return;
+        ctxMenu.hidden = true;
+        ctxMenu.replaceChildren();
+        if (ctxTargetRow) ctxTargetRow.classList.remove('context-target');
+        ctxTargetRow = null;
     }
 
-    function hideContextMenu() {
-        contextMenu.classList.remove('visible');
-        contextMenuTarget = null;
-    }
-
-    // Folder context menu
-    function showFolderContextMenu(e, folderPath) {
-        const menu = document.createElement('div');
-        menu.className = 'context-menu visible';
-        menu.style.left = `${e.clientX}px`;
-        menu.style.top = `${e.clientY}px`;
-        menu.innerHTML = `
-            <div class="context-menu-item" data-action="create-in-folder">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 5v14M5 12h14" />
-                </svg>
-                New Note Here
-            </div>
-        `;
-
-        document.body.appendChild(menu);
-
-        menu.addEventListener('click', async (ev) => {
-            const action = ev.target.closest('.context-menu-item')?.dataset.action;
-            if (action === 'create-in-folder') {
-                const name = await showPromptModal('New Note', `Create note in ${folderPath}/ (without .md):`);
-                if (name) {
-                    const path = `${folderPath}/${name}.md`;
-                    try {
-                        await api('item', 'POST', { path, type: 'file' });
-                        await loadNotes();
-                        await loadNote(path);
-                    } catch (error) {
-                        alert('Failed to create note');
-                    }
-                }
-            }
-            menu.remove();
+    function ctxItem(label, icon, onActivate, danger = false) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'dir-ctx-item' + (danger ? ' danger' : '');
+        button.setAttribute('role', 'menuitem');
+        if (icon) button.insertAdjacentHTML('afterbegin', icon);
+        const text = document.createElement('span');
+        text.textContent = label;
+        button.appendChild(text);
+        button.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeContextMenu();
+            onActivate();
         });
-
-        document.addEventListener('click', () => menu.remove(), { once: true });
+        return button;
     }
+
+    function ctxHeading(text) {
+        const heading = document.createElement('div');
+        heading.className = 'dir-ctx-heading';
+        heading.textContent = text;
+        return heading;
+    }
+
+    function ctxSeparator() {
+        const separator = document.createElement('div');
+        separator.className = 'dir-ctx-separator';
+        separator.setAttribute('role', 'separator');
+        return separator;
+    }
+
+    function showMenuAt(x, y, nodes) {
+        ctxMenu.replaceChildren(...nodes);
+        ctxMenu.style.left = '0px';
+        ctxMenu.style.top = '0px';
+        ctxMenu.hidden = false;
+        const width = ctxMenu.offsetWidth, height = ctxMenu.offsetHeight;
+        let left = x, top = y;
+        // keep it on screen: flip to the other side of the pointer when there is no room
+        if (left + width > window.innerWidth - 8) left = Math.max(8, x - width);
+        if (left < 8) left = 8;
+        if (top + height > window.innerHeight - 8) top = Math.max(8, y - height);
+        if (top < 8) top = 8;
+        ctxMenu.style.left = `${left}px`;
+        ctxMenu.style.top = `${top}px`;
+        ctxMenu.focus({ preventScroll: true });
+    }
+
+    // --- folder actions the menu needs ---
+    async function createNoteInFolder(folderPath) {
+        const name = await showPromptModal('New Note', `Create note in ${folderPath}/ (without .md):`);
+        if (!name) return;
+        const path = `${folderPath}/${name.replace(/[\\/]/g, '-')}.md`;
+        try {
+            await api('item', 'POST', { path, type: 'file' });
+            await loadNotes();
+            await loadNote(path);
+        } catch (error) {
+            alert('Failed to create note');
+        }
+    }
+
+    async function createSubfolder(folderPath) {
+        const name = await showPromptModal('New Folder', `Create folder inside ${folderPath}/:`);
+        if (!name) return;
+        try {
+            await api('item', 'POST', { path: `${folderPath}/${name.replace(/[\\/]/g, '-')}`, type: 'folder' });
+            await loadNotes();
+        } catch (error) {
+            alert('Failed to create folder');
+        }
+    }
+
+    async function renameFolder(folderPath) {
+        const oldName = folderPath.split('/').pop();
+        const newName = await showPromptModal('Rename Folder', 'Enter new name:', oldName);
+        if (!newName || newName === oldName) return;
+        try {
+            await api('item', 'PUT', { old_path: folderPath, new_name: newName });
+            const dir = folderPath.includes('/') ? folderPath.slice(0, folderPath.lastIndexOf('/') + 1) : '';
+            const newPath = dir + newName;
+            // the closed/open state, and the open note, follow the folder to its new name
+            const moved = (p) => (p === folderPath || p.startsWith(folderPath + '/')) ? newPath + p.slice(folderPath.length) : p;
+            collapsedFolders = new Set(Array.from(collapsedFolders).map(moved));
+            saveCollapsed();
+            if (currentNote) currentNote = moved(currentNote);
+            await loadNotes();
+            document.querySelectorAll('.note-item').forEach((item) => item.classList.toggle('active', item.dataset.path === currentNote));
+        } catch (error) {
+            alert('Could not rename the folder. Is there already one with that name?');
+        }
+    }
+
+    async function deleteFolder(folderPath) {
+        const confirmed = await showConfirmModal(
+            'Delete Folder',
+            `Delete "${folderPath.split('/').pop()}" and everything in it? This action cannot be undone.`,
+            { confirmText: 'Delete', cancelText: 'Keep', danger: true }
+        );
+        if (!confirmed) return;
+        try {
+            await api('item', 'DELETE', { path: folderPath });
+            if (currentNote && currentNote.startsWith(folderPath + '/')) {
+                editorContainer.style.display = 'none';
+                editorPlaceholder.style.display = 'flex';
+                currentNote = null;
+                hasUnsavedChanges = false;
+            }
+            await loadNotes();
+        } catch (error) {
+            alert('Failed to delete the folder');
+        }
+    }
+
+    function toggleFolder(folderPath) {
+        if (collapsedFolders.has(folderPath)) collapsedFolders.delete(folderPath);
+        else collapsedFolders.add(folderPath);
+        saveCollapsed();
+        applyVisibility();
+    }
+
+    function setAllFolders(collapse) {
+        collapsedFolders = new Set();
+        if (collapse) {
+            (function walk(items) {
+                for (const it of items || []) {
+                    if (it.type === 'folder') { collapsedFolders.add(it.path); walk(it.children); }
+                }
+            })(rootTree);
+        }
+        saveCollapsed();
+        applyVisibility();
+    }
+
+    // --- the menus ---
+    function buildFileMenu(path) {
+        return [
+            ctxHeading(path.split('/').pop().replace(/\.md$/i, '')),
+            ctxItem('Open', ICONS.open, () => loadNote(path)),
+            ctxItem('Rename…', ICONS.rename, () => renameNote(path)),
+            ctxItem('Duplicate…', ICONS.duplicate, () => duplicateNote(path)),
+            ctxItem('Download as Markdown', ICONS.download, () => downloadNote(path)),
+            ctxItem('Export as PDF', ICONS.pdf, () => exportNoteToPdf(path)),
+            ctxSeparator(),
+            ctxItem('Delete', ICONS.trash, () => deleteNote(path), true)
+        ];
+    }
+
+    function buildFolderMenu(path) {
+        const closed = collapsedFolders.has(path);
+        return [
+            ctxHeading(path.split('/').pop()),
+            ctxItem('New note here…', ICONS.newNote, () => createNoteInFolder(path)),
+            ctxItem('New subfolder…', ICONS.newFolder, () => createSubfolder(path)),
+            ctxSeparator(),
+            ctxItem(closed ? 'Open folder' : 'Close folder', closed ? ICONS.expand : ICONS.collapse, () => toggleFolder(path)),
+            ctxItem('Rename…', ICONS.rename, () => renameFolder(path)),
+            ctxSeparator(),
+            ctxItem('Delete folder', ICONS.trash, () => deleteFolder(path), true)
+        ];
+    }
+
+    function buildBatchMenu(count) {
+        return [
+            ctxHeading(`${count} notes selected`),
+            ctxItem('Download as Markdown', ICONS.download, () => batchDownload()),
+            ctxItem('Export as PDF', ICONS.pdf, () => batchExportPdf()),
+            ctxSeparator(),
+            ctxItem('Delete', ICONS.trash, () => batchDelete(), true)
+        ];
+    }
+
+    function buildBlankMenu() {
+        return [
+            ctxHeading('Notes'),
+            ctxItem('New note…', ICONS.newNote, () => createNote()),
+            ctxItem('New folder…', ICONS.newFolder, () => createFolder()),
+            ctxSeparator(),
+            ctxItem('Open all folders', ICONS.expand, () => setAllFolders(false)),
+            ctxItem('Close all folders', ICONS.collapse, () => setAllFolders(true)),
+            ctxItem('Refresh', ICONS.refresh, () => loadNotes())
+        ];
+    }
+
+    function openContextMenuFor(row, x, y) {
+        closeContextMenu();
+        let nodes;
+        if (!row) {
+            nodes = buildBlankMenu();
+        } else {
+            ctxTargetRow = row;
+            row.classList.add('context-target');
+            const path = row.dataset.path;
+            if (row.classList.contains('folder')) nodes = buildFolderMenu(path);
+            else if (selectedNotes.size > 1 && selectedNotes.has(path)) nodes = buildBatchMenu(selectedNotes.size);
+            else nodes = buildFileMenu(path);
+        }
+        showMenuAt(x, y, nodes);
+    }
+
+    notesList.addEventListener('contextmenu', (e) => {
+        if (e.shiftKey) return;   // Shift + right-click: the browser's normal menu
+        e.preventDefault();
+        const row = e.target.closest('.note-item');
+        openContextMenuFor(row && row.dataset.path ? row : null, e.clientX, e.clientY);
+    });
+
+    // anything else closes it; a right-click outside the list shows the browser's own menu as usual
+    document.addEventListener('mousedown', (e) => { if (!ctxMenu.hidden && !e.target.closest('#notesContextMenu')) closeContextMenu(); });
+    document.addEventListener('contextmenu', (e) => { if (!e.target.closest('#notesList') && !e.target.closest('#notesContextMenu')) closeContextMenu(); });
+    window.addEventListener('scroll', closeContextMenu, true);
+    window.addEventListener('resize', closeContextMenu);
+    window.addEventListener('blur', closeContextMenu);
+    document.addEventListener('keydown', (e) => {
+        if (ctxMenu.hidden) return;
+        if (e.key === 'Escape') { closeContextMenu(); return; }
+        const items = Array.from(ctxMenu.querySelectorAll('.dir-ctx-item'));
+        if (!items.length) return;
+        const index = items.indexOf(document.activeElement);
+        if (e.key === 'ArrowDown') { e.preventDefault(); items[(index + 1) % items.length].focus(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); items[(index - 1 + items.length) % items.length].focus(); }
+        else if (e.key === 'Home') { e.preventDefault(); items[0].focus(); }
+        else if (e.key === 'End') { e.preventDefault(); items[items.length - 1].focus(); }
+    });
+
 
     // Drag and drop functionality
     let draggedItem = null;
@@ -880,10 +1183,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const data = await api(`note?path=${encodeURIComponent(path)}`);
 
-                // Convert HTML to plain text markdown
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = data.content || '';
-                const markdownContent = tempDiv.textContent || tempDiv.innerText || '';
+                const markdownContent = NotesEditor.contentToMarkdown(data.content).markdown;
 
                 const blob = new Blob([markdownContent], { type: 'text/markdown' });
                 const url = URL.createObjectURL(blob);
@@ -956,76 +1256,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (item.classList.contains('folder')) {
             e.preventDefault();
             e.stopPropagation();
-            item.classList.toggle('collapsed');
             const folderPath = item.dataset.path;
-            const isCollapsed = item.classList.contains('collapsed');
-
-            // Toggle visibility of child items based on collapsed state
-            let nextItem = item.nextElementSibling;
-            while (nextItem && nextItem.classList.contains('note-item')) {
-                const itemPath = nextItem.dataset.path;
-                if (!itemPath || !itemPath.startsWith(folderPath + '/')) break;
-
-                if (isCollapsed) {
-                    nextItem.classList.add('hidden');
-                } else {
-                    nextItem.classList.remove('hidden');
-                }
-                nextItem = nextItem.nextElementSibling;
-            }
+            if (collapsedFolders.has(folderPath)) collapsedFolders.delete(folderPath);
+            else collapsedFolders.add(folderPath);
+            saveCollapsed();
+            applyVisibility();
             return;
         }
 
         // Handle file click
         if (item.dataset.path && item.dataset.type !== 'folder') {
             loadNote(item.dataset.path);
-        }
-    });
-
-    notesList.addEventListener('contextmenu', (e) => {
-        const item = e.target.closest('.note-item');
-        if (!item || !item.dataset.path) return;
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        // Handle folder context menu
-        if (item.classList.contains('folder')) {
-            showFolderContextMenu(e, item.dataset.path);
-        } else if (item.dataset.type === 'file') {
-            showContextMenu(e, item.dataset.path);
-        }
-    });
-
-    contextMenu.addEventListener('click', async (e) => {
-        const action = e.target.closest('.context-menu-item')?.dataset.action;
-        if (!action || !contextMenuTarget) return;
-
-        const target = contextMenuTarget; // Store target before hiding menu
-        hideContextMenu();
-
-        switch (action) {
-            case 'rename':
-                await renameNote(target);
-                break;
-            case 'duplicate':
-                await duplicateNote(target);
-                break;
-            case 'download':
-                await downloadNote(target);
-                break;
-            case 'exportPdf':
-                await exportNoteToPdf(target);
-                break;
-            case 'delete':
-                await deleteNote(target);
-                break;
-        }
-    });
-
-    document.addEventListener('click', (e) => {
-        if (!contextMenu.contains(e.target)) {
-            hideContextMenu();
         }
     });
 
@@ -1036,48 +1277,41 @@ document.addEventListener('DOMContentLoaded', () => {
     downloadBtn.addEventListener('click', () => downloadNote());
     exportPdfBtn.addEventListener('click', () => exportNoteToPdf());
 
-    // Preview and Markdown mode toggles
-    const previewBtn = document.getElementById('previewBtn');
-    const markdownBtn = document.getElementById('markdownBtn');
-    let isPreviewMode = false;
-    let isMarkdownMode = false;
-
+    // Reading view (eye) and source view (</>): each toggles back to the normal live-preview editing
     previewBtn.addEventListener('click', () => {
-        isPreviewMode = !isPreviewMode;
-        const toolbar = document.querySelector('.ql-toolbar');
-        const editor = document.querySelector('.ql-editor');
-
-        if (isPreviewMode) {
-            toolbar.style.display = 'none';
-            editor.setAttribute('contenteditable', 'false');
-            previewBtn.classList.add('active');
-        } else {
-            toolbar.style.display = 'block';
-            editor.setAttribute('contenteditable', 'true');
-            previewBtn.classList.remove('active');
-        }
+        editor.setMode(editor.getMode() === 'reading' ? 'live' : 'reading');
     });
 
     markdownBtn.addEventListener('click', () => {
-        isMarkdownMode = !isMarkdownMode;
-        const editor = document.querySelector('.ql-editor');
+        editor.setMode(editor.getMode() === 'source' ? 'live' : 'source');
+    });
 
-        if (isMarkdownMode) {
-            // Show raw HTML/markdown
-            const content = quill.root.innerHTML;
-            quill.root.textContent = content;
-            markdownBtn.classList.add('active');
-        } else {
-            // Back to rich text
-            const content = quill.root.textContent;
-            quill.root.innerHTML = content;
-            markdownBtn.classList.remove('active');
+    // The big title is the file name: Enter or clicking away renames the note (unsaved edits stay in the editor)
+    noteTitle.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); noteTitle.blur(); }
+    });
+    noteTitle.addEventListener('change', async () => {
+        if (!currentNote) return;
+        const oldName = currentNote.split('/').pop().replace(/\.md$/, '');
+        const newName = noteTitle.value.trim().replace(/[\\/]/g, '-');
+        if (!newName || newName === oldName) { noteTitle.value = oldName; return; }
+        try {
+            await api('item', 'PUT', { old_path: currentNote, new_name: `${newName}.md` });
+            const dir = currentNote.includes('/') ? currentNote.slice(0, currentNote.lastIndexOf('/') + 1) : '';
+            currentNote = `${dir}${newName}.md`;
+            noteTitle.value = newName;
+            await loadNotes();
+            document.querySelectorAll('.note-item').forEach((item) => item.classList.toggle('active', item.dataset.path === currentNote));
+        } catch (error) {
+            alert('Could not rename the note. Is there already one with that name?');
+            noteTitle.value = oldName;
         }
     });
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-        if (e.ctrlKey && e.key === 's') {
+        if (e.defaultPrevented) return;   // the editor handles Ctrl+S itself while it has focus
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
             e.preventDefault();
             if (currentNote) saveNote();
         }

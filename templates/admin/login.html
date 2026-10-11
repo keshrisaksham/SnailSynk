@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dark-theme.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-login.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/glass.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/background-fx.css') }}">
     <link rel="icon" href="{{ url_for('static', filename='icon/favicon.png') }}" type="image/png">
     <script>
         (function () {
@@ -27,7 +29,7 @@
     </script>
 </head>
 
-<body>
+<body class="glass">
     {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
     <ul class="flash-messages">
@@ -80,6 +82,7 @@
             </div>
         </div>
     </div>
+    <script src="{{ url_for('static', filename='js/background-fx.js') }}"></script>
     <script>
         document.getElementById('togglePassword').addEventListener('click', function () {
             const pw = document.getElementById('password');

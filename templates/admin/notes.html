@@ -6,9 +6,10 @@
 
 {% block head %}
 {{ super() }}
-<!-- Quill Editor -->
-<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<!-- Markdown editor (CodeMirror 5, served from /static/vendor so it works offline) -->
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/codemirror/codemirror.min.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-notes.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/notes-editor.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -161,46 +162,6 @@
 </div>
 
 <!-- Context Menu -->
-<div id="contextMenu" class="context-menu">
-    <div class="context-menu-item" data-action="rename">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-        </svg>
-        Rename
-    </div>
-    <div class="context-menu-item" data-action="duplicate">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-        </svg>
-        Duplicate
-    </div>
-    <div class="context-menu-item" data-action="download">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-        </svg>
-        Download
-    </div>
-    <div class="context-menu-item" data-action="exportPdf">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <path d="M9 15h6" />
-            <path d="M9 11h6" />
-        </svg>
-        Export as PDF
-    </div>
-    <div class="context-menu-divider"></div>
-    <div class="context-menu-item danger" data-action="delete">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-        </svg>
-        Delete
-    </div>
-</div>
 
 <!-- Unsaved Changes Modal -->
 <div id="unsavedModal" class="notes-modal-overlay">
@@ -291,6 +252,24 @@
         <p class="notes-modal-hint">Press <kbd>Esc</kbd> to cancel</p>
     </div>
 </div>
-<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+<script src="{{ url_for('static', filename='vendor/codemirror/codemirror.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/codemirror/addon/mode/overlay.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/codemirror/addon/edit/continuelist.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/codemirror/addon/selection/active-line.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/codemirror/addon/display/placeholder.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/codemirror/mode/xml/xml.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/codemirror/mode/meta.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/codemirror/mode/markdown/markdown.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/codemirror/mode/javascript/javascript.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/codemirror/mode/python/python.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/codemirror/mode/css/css.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/codemirror/mode/htmlmixed/htmlmixed.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/codemirror/mode/shell/shell.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/codemirror/mode/sql/sql.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/codemirror/mode/clike/clike.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/marked.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/purify.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/turndown.js') }}"></script>
+<script src="{{ url_for('static', filename='js/notes-editor.js') }}"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 {% endblock %}

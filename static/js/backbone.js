@@ -10,8 +10,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }[match]));
     }
 
+    // The QR code is always drawn on a white square, so its modules must be dark. In the dark theme --c-primary is a
+    // light colour, which would give an unscannable light-on-white code; so use the standard (light theme) accent.
+    const QR_ACCENTS = { red: '#dc2626', blue: '#2563eb', green: '#16a34a', purple: '#7c3aed', orange: '#ea580c', black: '#171717' };
+
     function getAccentColor() {
-        return getComputedStyle(document.documentElement).getPropertyValue('--c-primary').trim();
+        const cls = Array.from(document.documentElement.classList).find(c => c.startsWith('accent-'));
+        const name = cls ? cls.slice('accent-'.length) : '';
+        return QR_ACCENTS[name] || getComputedStyle(document.documentElement).getPropertyValue('--c-primary').trim();
     }
 
     async function fetchQrCode(type, payload = {}) {

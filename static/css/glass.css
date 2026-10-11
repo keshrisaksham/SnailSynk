@@ -1,0 +1,979 @@
+/* static/css/glass.css - "liquid glass" skin (v2, light on the GPU). Loaded after every other stylesheet and only
+   active under body.glass, so removing the class (or this file) restores the plain look.
+
+   Performance rules this file follows (the first version ignored them and lagged):
+   - Surfaces that are always on screen (header, panels, buttons, table) use NO backdrop-filter. A blur behind an
+     element must be recomputed whenever anything behind it moves (and the background used to have drifting glows
+     that moved constantly), so dozens of nested blurs meant dozens of full re-blurs per frame. The glass look there comes from translucency,
+     bright rims, inner glow and a soft gloss instead.
+   - Blur is kept only for short-lived floating surfaces (menus, dialogs, popups) and the phone bottom bar.
+   - Nothing here is updated from JavaScript on mouse move.
+   To get the full frosted look back on the big surfaces (costs GPU), set  --glass-blur: blur(14px) saturate(170%);  */
+
+:root {
+    --glass-radius: 18px;
+    --glass-radius-sm: 12px;
+    --glass-blur: none;                              /* panels + header: see note above */
+    --glass-blur-float: blur(18px) saturate(160%);   /* menus, dialogs, popups */
+
+    --glass-bg: rgba(255, 255, 255, 0.60);           /* big surfaces: panels, header */
+    --glass-bg-soft: rgba(255, 255, 255, 0.46);      /* surfaces inside a panel: inputs, table, cards */
+    --glass-bg-strong: rgba(255, 255, 255, 0.84);    /* floating surfaces that must stay readable */
+    --glass-edge: rgba(255, 255, 255, 0.75);         /* bright rim */
+    --glass-edge-dim: rgba(255, 255, 255, 0.32);
+    --glass-line: rgba(23, 23, 23, 0.07);            /* hairline dividers */
+    --glass-item-hover: rgba(23, 23, 23, 0.06);      /* hover inside menus / rows */
+    --glass-sheen: rgba(255, 255, 255, 0.55);
+    --glass-shadow: 0 10px 30px rgba(31, 38, 60, 0.09), 0 2px 6px rgba(31, 38, 60, 0.05);
+    --glass-shadow-strong: 0 18px 48px rgba(31, 38, 60, 0.20), 0 4px 12px rgba(31, 38, 60, 0.10);
+
+    /* buttons: outline / ghost style */
+    --btn-border: rgba(23, 23, 23, 0.11);            /* hairline, also used by inputs */
+    --btn-outline: rgba(23, 23, 23, 0.22);           /* secondary + icon button outline */
+    --btn-fill-hover: rgba(var(--c-primary-rgb), 0.12);
+    --btn-fill-active: rgba(var(--c-primary-rgb), 0.20);
+}
+
+html.dark {
+    /* dark: true black. A pure black page, panels barely lighter, thin visible edges, wells blacker than the panel,
+       text at full brightness. No tint and no glow: the accent is the only colour. */
+    --glass-bg: rgba(10, 10, 10, 0.92);
+    --glass-bg-soft: rgba(0, 0, 0, 0.55);
+    --glass-bg-strong: rgba(12, 12, 12, 0.97);
+    --glass-edge: rgba(255, 255, 255, 0.17);
+    --glass-edge-dim: rgba(255, 255, 255, 0.02);
+    --glass-line: rgba(255, 255, 255, 0.10);
+    --glass-item-hover: rgba(255, 255, 255, 0.08);
+    --glass-sheen: rgba(255, 255, 255, 0.025);
+    --glass-shadow: 0 12px 34px rgba(0, 0, 0, 0.65), 0 2px 6px rgba(0, 0, 0, 0.5);
+    --glass-shadow-strong: 0 22px 60px rgba(0, 0, 0, 0.8), 0 4px 12px rgba(0, 0, 0, 0.6);
+
+    --btn-border: rgba(255, 255, 255, 0.17);
+    --btn-outline: rgba(255, 255, 255, 0.27);
+    --btn-fill-hover: rgba(var(--c-primary-rgb), 0.22);
+    --btn-fill-active: rgba(var(--c-primary-rgb), 0.34);
+}
+
+/* dark page: native controls and scrollbars go dark too; the shared greys become black-based */
+html.dark {
+    color-scheme: dark;
+    --c-bg: #000000;
+    --c-surface: #0a0a0a;
+    --c-border: #2b2b2b;
+    --c-border-hover: #454545;
+    --c-text-main: #ffffff;
+    --c-text-muted: #adadad;
+}
+
+html.dark body.glass {
+    background-color: #000;
+    background-image: linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+}
+
+/* ---- checkboxes: one custom look for the file table and the notes list (the native one is a bright white square on dark) */
+body.glass table input[type="checkbox"],
+body.glass .note-checkbox {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    vertical-align: middle;
+    border: 1.5px solid var(--btn-outline);
+    border-radius: 5px;
+    background-color: transparent;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 12px 12px;
+    cursor: pointer;
+    transition: background-color 0.14s ease, border-color 0.14s ease;
+}
+
+body.glass table input[type="checkbox"]:hover,
+body.glass .note-checkbox:hover {
+    border-color: rgba(var(--c-primary-rgb), 0.7);
+}
+
+body.glass table input[type="checkbox"]:checked,
+body.glass .note-checkbox:checked,
+body.glass table input[type="checkbox"]:indeterminate {
+    background-color: var(--c-primary);
+    border-color: var(--c-primary);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='5 12.5 10 17.5 19 7'/%3E%3C/svg%3E");
+}
+
+/* accents are light on dark: a dark tick on them */
+html.dark body.glass table input[type="checkbox"]:checked,
+html.dark body.glass .note-checkbox:checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23050505' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='5 12.5 10 17.5 19 7'/%3E%3C/svg%3E");
+}
+
+body.glass table input[type="checkbox"]:focus-visible,
+body.glass .note-checkbox:focus-visible {
+    outline: 2px solid rgba(var(--c-primary-rgb), 0.55);
+    outline-offset: 2px;
+}
+
+/* ---- header ---------------------------------------------------------------------------------------------- */
+body.glass .app-header {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border-bottom: 1px solid var(--glass-edge);
+    box-shadow: 0 6px 22px rgba(31, 38, 60, 0.06), inset 0 -1px 0 var(--glass-edge-dim);
+}
+
+/* ---- panels / cards -------------------------------------------------------------------------------------- */
+body.glass .panel,
+body.glass .stat-card,
+body.glass .monitor-tab-panel {
+    position: relative;
+    isolation: isolate;                       /* keeps the gloss between the glass and the content */
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-edge);
+    border-radius: var(--glass-radius);
+    box-shadow: var(--glass-shadow),
+        inset 0 1px 0 var(--glass-edge),
+        inset 0 0 22px var(--glass-edge-dim);
+}
+
+/* static gloss in the top-left corner (no JavaScript, nothing to repaint) */
+body.glass .panel::before,
+body.glass .stat-card::before,
+body.glass .monitor-tab-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(155deg, var(--glass-sheen) 0%, transparent 38%);
+}
+
+body.glass .panel-header {
+    border-bottom-color: var(--glass-line);
+}
+
+/* ---- buttons: outline / ghost ---------------------------------------------------------------------------- */
+/* Secondary and icon buttons are transparent with just an outline and fill in (tinted with the accent) on hover;
+   primary buttons are flat solid accent. The base stylesheet transitions "all" properties: only fade colours. */
+body.glass .btn,
+body.glass .btn-icon {
+    transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, transform 0.1s ease;
+}
+
+body.glass .btn {
+    border-radius: 10px;
+    font-weight: 500;
+    letter-spacing: 0.005em;
+}
+
+body.glass .btn-secondary {
+    background: transparent;
+    border: 1px solid var(--btn-outline);
+    color: var(--c-text-main);
+    box-shadow: none;
+}
+
+body.glass .btn-secondary:hover:not(:disabled) {
+    background: var(--btn-fill-hover);
+    border-color: rgba(var(--c-primary-rgb), 0.65);
+    box-shadow: none;
+}
+
+body.glass .btn-secondary:active:not(:disabled) {
+    background: var(--btn-fill-active);
+}
+
+/* primary: flat solid accent. Hover goes to the lighter accent (the base stylesheet turns it near-black). */
+body.glass .btn-primary {
+    background: var(--c-primary);
+    border-color: var(--c-primary);
+    box-shadow: none;
+}
+
+body.glass .btn-primary:hover:not(:disabled) {
+    background: var(--c-accent);
+    border-color: var(--c-accent);
+    box-shadow: none;
+}
+
+body.glass .btn-primary:active:not(:disabled) {
+    background: var(--c-primary-hover, var(--c-primary));
+    border-color: var(--c-primary-hover, var(--c-primary));
+}
+
+body.glass .btn:disabled {
+    box-shadow: none;
+}
+
+/* icon buttons: same outline, rounded squares */
+body.glass .btn-icon {
+    background: transparent;
+    border: 1px solid var(--btn-outline);
+    border-radius: 10px;
+    box-shadow: none;
+}
+
+body.glass .btn-icon:hover {
+    background: var(--btn-fill-hover);
+    border-color: rgba(var(--c-primary-rgb), 0.65);
+    color: var(--c-text-main);
+}
+
+body.glass .btn-icon:active {
+    background: var(--btn-fill-active);
+}
+
+/* keyboard focus stays clearly visible on the otherwise minimal buttons */
+body.glass .btn:focus-visible,
+body.glass .btn-icon:focus-visible {
+    outline: 2px solid rgba(var(--c-primary-rgb), 0.55);
+    outline-offset: 2px;
+}
+
+/* dialog buttons (Confirm / Cancel / Yes / No) have their own classes: same outline + flat solid style */
+body.glass .snail-modal-actions button {
+    border-radius: 10px;
+    background: transparent;
+    border: 1px solid var(--btn-outline);
+    box-shadow: none;
+    transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+body.glass .snail-modal-actions button:hover {
+    transform: none;
+    background: var(--btn-fill-hover);
+    border-color: rgba(var(--c-primary-rgb), 0.65);
+}
+
+body.glass .snail-modal-actions .snail-btn-primary {
+    background: var(--c-primary);
+    border-color: var(--c-primary);
+    color: var(--c-primary-text);
+}
+
+body.glass .snail-modal-actions .snail-btn-primary:hover {
+    background: var(--c-accent);
+    border-color: var(--c-accent);
+    filter: none;
+}
+
+body.glass .snail-modal-actions .snail-btn-danger {
+    background: var(--c-danger, #ef4444);
+    border-color: var(--c-danger, #ef4444);
+}
+
+body.glass .snail-modal-actions .snail-btn-danger:hover {
+    background: var(--c-danger-hover, #dc2626);
+    border-color: var(--c-danger-hover, #dc2626);
+    filter: none;
+}
+
+/* the small per-row icons are not outlined buttons */
+body.glass .index-file-actions .btn-icon,
+body.glass .index-file-actions .file-download-link {
+    background: none;
+    border: none;
+    box-shadow: none;
+}
+
+body.glass .index-file-actions .btn-icon:hover {
+    background: var(--glass-item-hover);
+}
+
+/* ---- inputs ---------------------------------------------------------------------------------------------- */
+body.glass textarea#sharedTextArea,
+body.glass .markdown-preview,
+body.glass .search-input-wrapper,
+body.glass .form-group input,
+body.glass .snail-modal input {
+    background: var(--glass-bg-soft);
+    border: 1px solid var(--btn-border);
+    border-radius: 14px;
+    box-shadow: inset 0 2px 8px rgba(31, 38, 60, 0.05);
+}
+
+body.glass textarea#sharedTextArea:focus,
+body.glass .form-group input:focus,
+body.glass .snail-modal input:focus {
+    border-color: rgba(var(--c-primary-rgb), 0.55);
+    box-shadow: 0 0 0 4px rgba(var(--c-primary-rgb), 0.14), inset 0 2px 8px rgba(31, 38, 60, 0.04);
+}
+
+body.glass .file-drop-zone {
+    background: var(--glass-bg-soft);
+    border-radius: 16px;
+    border-color: var(--btn-border);
+}
+
+body.glass .file-drop-zone.drag-over {
+    background: rgba(var(--c-primary-rgb), 0.10);
+    border-color: rgba(var(--c-primary-rgb), 0.6);
+}
+
+/* ---- file table ------------------------------------------------------------------------------------------ */
+body.glass .table-wrapper {
+    background: var(--glass-bg-soft);
+    border: 1px solid var(--glass-edge);
+    border-radius: 14px;
+}
+
+body.glass th {
+    background: var(--glass-bg);
+}
+
+body.glass tbody tr {
+    border-bottom-color: var(--glass-line);
+}
+
+body.glass tbody tr:not(.folder-row):not(.type-group-separator):not(.context-target):not(.hidden-row):hover {
+    background: var(--glass-item-hover);
+}
+
+body.glass .type-group-label {
+    background: var(--glass-bg);
+}
+
+@media (min-width: 769px) {
+    body.glass .download-container[data-view="grid"] tbody tr {
+        background: var(--glass-bg-soft);
+        border: 1px solid var(--glass-edge);
+        border-radius: 14px;
+        box-shadow: inset 0 1px 0 var(--glass-edge), 0 3px 10px rgba(31, 38, 60, 0.05);
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    body.glass .download-container[data-view="grid"] tbody tr:hover {
+        transform: translateY(-2px);
+        box-shadow: inset 0 1px 0 var(--glass-edge), 0 8px 20px rgba(31, 38, 60, 0.12);
+    }
+
+    body.glass .download-container[data-view="grid"] tbody tr:has(> td[colspan]),
+    body.glass .download-container[data-view="grid"] tbody tr.type-group-separator,
+    body.glass .download-container[data-view="details"] tbody tr.type-group-separator {
+        background: none;
+        box-shadow: none;
+        border: none;
+        transform: none;
+    }
+}
+
+/* ---- floating surfaces: menus, dialogs, previews. Short-lived and small, so they may blur; more opaque so text
+        stays crisp. (Hidden ones must not blur: see the visibility rules below.) -------------------------------- */
+body.glass .custom-sort-options,
+body.glass .dir-context-menu,
+body.glass .snail-modal,
+body.glass .modal-content,
+body.glass .image-preview-popup,
+body.glass .context-menu,
+body.glass .notes-modal,
+body.glass .toast-notification {
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-edge);
+    border-radius: 16px;
+    box-shadow: var(--glass-shadow-strong), inset 0 1px 0 var(--glass-edge);
+}
+
+/* blur only while the surface is actually showing: a hidden one that still blurs costs as much as a visible one */
+body.glass .custom-sort-options.visible,
+body.glass .dir-context-menu:not([hidden]),
+body.glass .modal-overlay.visible .modal-content,
+body.glass .snail-modal-overlay.visible .snail-modal,
+body.glass .image-preview-popup.visible,
+body.glass .toast-notification,
+body.glass .context-menu {
+    -webkit-backdrop-filter: var(--glass-blur-float, blur(18px) saturate(160%));
+    backdrop-filter: var(--glass-blur-float, blur(18px) saturate(160%));
+}
+
+body.glass .custom-sort-option:hover,
+body.glass .dir-ctx-item:hover,
+body.glass .dir-ctx-item:focus-visible {
+    background: var(--glass-item-hover);
+}
+
+body.glass .dir-ctx-separator {
+    background: var(--glass-line);
+}
+
+/* dialog backdrop: a light dim; the full-screen blur is only worth it while a dialog is open */
+body.glass .modal-overlay,
+body.glass .snail-modal-overlay {
+    background: rgba(15, 15, 22, 0.30);
+}
+
+body.glass .modal-overlay.visible,
+body.glass .snail-modal-overlay.visible {
+    -webkit-backdrop-filter: blur(5px);
+    backdrop-filter: blur(5px);
+}
+
+body.glass .mobile-bottom-nav {
+    background: var(--glass-bg-strong);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    backdrop-filter: blur(14px) saturate(150%);
+    border-top-color: var(--glass-edge);
+    box-shadow: 0 -6px 22px rgba(31, 38, 60, 0.07);
+}
+
+/* ---- admin dashboard extras --------------------------------------------------------------------------- */
+body.glass .admin-sidebar,
+body.glass .monitor-tab-bar {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border-color: var(--glass-edge);
+}
+
+/* ---- admin pages + login: the same outline / ghost button language as the main app ----------------------------
+   The admin stylesheets give their buttons their own look (solid fills, gradients, lifts, coloured shadows). These rules
+   bring them in line: outlined at rest, tinted fill + accent outline on hover, flat solid accent for "selected". */
+body.glass .btn:hover:not(:disabled),
+body.glass .btn-icon:hover,
+body.glass .btn-primary:hover:not(:disabled) {
+    transform: none;                           /* no lift / scale on hover */
+    opacity: 1;
+}
+
+body.glass .btn-primary {
+    color: var(--c-primary-text);
+}
+
+/* plain .btn (notes toolbar, notes dialogs): outlined like a secondary button */
+body.glass .btn:not(.btn-primary):not(.btn-danger):not(.active) {
+    background: transparent;
+    border: 1px solid var(--btn-outline);
+    color: var(--c-text-main);
+}
+
+body.glass .btn:not(.btn-primary):not(.btn-danger):not(.active):hover:not(:disabled) {
+    background: var(--btn-fill-hover);
+    border-color: rgba(var(--c-primary-rgb), 0.65);
+}
+
+body.glass .btn:not(.btn-primary):not(.btn-danger):not(.active):active:not(:disabled) {
+    background: var(--btn-fill-active);
+}
+
+/* danger: flat solid red, like the dialog's danger button */
+body.glass .btn-danger {
+    background: var(--c-danger, #ef4444);
+    border: 1px solid var(--c-danger, #ef4444);
+    color: #fff;
+    box-shadow: none;
+}
+
+body.glass .btn-danger:hover:not(:disabled) {
+    background: var(--c-danger-hover, #dc2626);
+    border-color: var(--c-danger-hover, #dc2626);
+    color: #fff;
+}
+
+/* selected / toggled-on state: flat solid accent (same as primary) */
+body.glass .btn-icon.active,
+body.glass .btn-icon.active:hover,
+body.glass .monitor-tab-btn.active {
+    background: var(--c-primary);
+    border-color: var(--c-primary);
+    color: var(--c-primary-text);
+    box-shadow: none;
+}
+
+body.glass .btn.active,
+body.glass .btn.active:hover {
+    background: var(--c-primary) !important;
+    border: 1px solid var(--c-primary) !important;
+    color: var(--c-primary-text) !important;
+    box-shadow: none;
+}
+
+/* tabs and sidebar items are borderless at rest; hover gets the ghost fill + an accent ring (inset: no layout shift) */
+body.glass .monitor-tab-btn {
+    border-radius: 10px;
+    transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+body.glass .monitor-tab-btn:not(.active):hover {
+    background: var(--btn-fill-hover);
+    box-shadow: inset 0 0 0 1px rgba(var(--c-primary-rgb), 0.65);
+}
+
+/* sidebar items (desktop only: on phones the sidebar is a bottom tab bar with its own look) */
+@media (min-width: 769px) {
+    body.glass .sidebar-nav a {
+        border-radius: 10px;
+        transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    body.glass .sidebar-nav a:not(.active):hover {
+        background: var(--btn-fill-hover);
+        box-shadow: inset 0 0 0 1px rgba(var(--c-primary-rgb), 0.65);
+    }
+
+    body.glass .sidebar-nav a.active {
+        background: var(--c-primary);
+        border-color: var(--c-primary);
+        color: var(--c-primary-text);
+        box-shadow: none;
+    }
+
+    body.glass .sidebar-nav a.active .nav-icon {
+        background: color-mix(in srgb, var(--c-primary-text) 18%, transparent);
+    }
+
+    body.glass .sidebar-nav a.active .nav-icon svg {
+        color: var(--c-primary-text);
+    }
+}
+
+/* the sidebar's brand tile: flat accent too (no gradient / coloured glow) */
+body.glass .brand-icon {
+    background: var(--c-primary);
+    box-shadow: none;
+}
+
+body.glass .brand-icon svg {
+    color: var(--c-primary-text);
+}
+
+/* sidebar collapse button = an icon button */
+body.glass .sidebar-toggle-btn {
+    background: transparent;
+    border: 1px solid var(--btn-outline);
+    border-radius: 10px;
+    color: var(--c-text-main);
+}
+
+body.glass .sidebar-toggle-btn:hover {
+    background: var(--btn-fill-hover);
+    border-color: rgba(var(--c-primary-rgb), 0.65);
+    color: var(--c-text-main);
+}
+
+/* the notes list and the editor have their own dark background in admin-notes.css; use the shared surface instead */
+body.glass .notes-sidebar,
+body.glass .editor-main {
+    background: var(--glass-bg);
+    border-color: var(--glass-edge);
+    box-shadow: var(--glass-shadow);
+}
+
+/* QR codes are drawn on their own white square; the container around it is just a frame, not another dark slab */
+body.glass .qr-code-container {
+    background: transparent;
+}
+
+/* ---- notes list pane ------------------------------------------------------------------------------------------
+   Header, search, folder filter and the tree of notes. Folders are section rows with a turning chevron; notes get a
+   small page icon that turns into a checkbox on hover (or everywhere once something is selected, and always on touch
+   screens); the open note is tinted with an accent ring, the same way hovered buttons are. */
+body.glass .notes-sidebar .sidebar-header {
+    padding: 0.95rem 1rem 0.5rem;
+    border-bottom: none;
+    min-height: 0;
+}
+
+body.glass .notes-sidebar .sidebar-header h3 {
+    font-size: 1rem;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+}
+
+/* the base stylesheet's collapsible search bar (max-height: 0; opacity: 0) also matched this pane and hid the search box */
+body.glass .notes-sidebar .search-container {
+    max-height: none;
+    opacity: 1;
+    overflow: visible;
+    padding: 0.5rem 1rem;
+    border-bottom: none;
+}
+
+body.glass .notes-sidebar .search-icon {
+    left: 1.8rem;
+}
+
+body.glass .notes-sidebar .search-input {
+    padding: 0.55rem 0.875rem 0.55rem 2.3rem;
+    border: 1px solid var(--btn-border);
+    border-radius: 12px;
+    background: var(--glass-bg-soft);
+}
+
+body.glass .notes-sidebar .search-input:focus {
+    border-color: rgba(var(--c-primary-rgb), 0.55);
+    box-shadow: 0 0 0 4px rgba(var(--c-primary-rgb), 0.14);
+}
+
+body.glass .notes-sidebar .filter-container {
+    padding: 0.25rem 1rem 0.65rem;
+    border-bottom: none;
+    gap: 0.5rem;
+}
+
+body.glass .notes-sidebar .filter-label {
+    font-size: 0.75rem;
+    color: var(--c-text-secondary);
+}
+
+/* the select used to overflow the pane (a flex item defaults to min-width: auto) */
+body.glass .notes-sidebar .filter-select {
+    min-width: 0;
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    padding: 0.45rem 2rem 0.45rem 0.8rem;
+    border: 1px solid var(--btn-border);
+    border-radius: 12px;
+    background-color: var(--glass-bg-soft);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    text-overflow: ellipsis;
+}
+
+body.glass .notes-sidebar .filter-select:hover,
+body.glass .notes-sidebar .filter-select:focus {
+    border-color: rgba(var(--c-primary-rgb), 0.55);
+}
+
+body.glass .notes-sidebar .notes-list {
+    padding: 0.5rem 0.5rem 1rem;
+    border-top: 1px solid var(--glass-line);
+    scrollbar-width: thin;
+    scrollbar-color: var(--btn-outline) transparent;
+}
+
+/* rows: folders and notes share one grid of indents (--lvl is set on each row by admin-notes.js) */
+body.glass .notes-list .note-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 34px;
+    margin: 0 0 2px;
+    padding: 0.4rem 0.6rem 0.4rem calc(0.6rem + var(--lvl, 0) * 1.15rem);
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: transparent;
+    font-size: 0.8125rem;
+    transition: background-color 0.14s ease, border-color 0.14s ease;
+}
+
+body.glass .notes-list .note-item:hover {
+    background: var(--glass-item-hover);
+    border-color: transparent;
+}
+
+/* a thin guide line down the left of a folder's contents */
+body.glass .notes-list .note-item:not([style*="--lvl: 0"])::before {
+    content: "";
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    left: calc(0.6rem + (var(--lvl) - 1) * 1.15rem + 7px);
+    width: 1px;
+    background: var(--glass-line);
+    pointer-events: none;
+}
+
+body.glass .notes-list .note-item.folder {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+body.glass .notes-list .note-item.folder .folder-chevron {
+    flex-shrink: 0;
+    color: var(--c-text-secondary);
+    transition: transform 0.2s ease;
+}
+
+body.glass .notes-list .note-item.folder.collapsed .folder-chevron {
+    transform: rotate(-90deg);
+}
+
+body.glass .notes-list .note-item.folder .folder-icon,
+body.glass .notes-list .note-item.folder.collapsed .folder-icon {
+    flex-shrink: 0;
+    color: var(--c-primary);
+    transform: none;
+}
+
+body.glass .notes-list .note-item .note-icon {
+    flex-shrink: 0;
+    color: var(--c-text-secondary);
+    transition: opacity 0.12s ease;
+}
+
+body.glass .notes-list .note-item-title {
+    font-weight: 500;
+    color: var(--c-text-main);
+}
+
+/* the open note: accent tint + ring (the same language as a hovered button) */
+body.glass .notes-list .note-item.active {
+    background: var(--btn-fill-hover);
+    border-color: rgba(var(--c-primary-rgb), 0.55);
+    color: var(--c-text-main);
+}
+
+body.glass .notes-list .note-item.active .note-item-title {
+    color: var(--c-text-main);
+    font-weight: 600;
+}
+
+body.glass .notes-list .note-item.active .note-icon {
+    color: var(--c-text-main);
+}
+
+/* the checkbox sits exactly over the page icon and swaps with it */
+body.glass .notes-list .note-checkbox {
+    position: absolute;
+    left: calc(0.6rem + var(--lvl, 0) * 1.15rem);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
+}
+
+body.glass .notes-list .note-item:hover .note-checkbox,
+body.glass .notes-list .note-item:has(.note-checkbox:checked) .note-checkbox,
+body.glass .notes-sidebar:has(.batch-actions) .note-checkbox {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+body.glass .notes-list .note-item:hover .note-icon,
+body.glass .notes-list .note-item:has(.note-checkbox:checked) .note-icon,
+body.glass .notes-sidebar:has(.batch-actions) .note-icon {
+    opacity: 0;
+}
+
+@media (hover: none) and (pointer: coarse) {
+    body.glass .notes-list .note-item { min-height: 44px; }
+    body.glass .notes-list .note-checkbox { opacity: 1; pointer-events: auto; }
+    body.glass .notes-list .note-icon { opacity: 0; }
+}
+
+/* the row a right-click menu belongs to */
+body.glass .notes-list .note-item.context-target {
+    background: var(--glass-item-hover);
+    box-shadow: inset 0 0 0 1px rgba(var(--c-primary-rgb), 0.55);
+}
+
+/* the selection bar that appears above the list */
+body.glass .notes-sidebar .batch-actions {
+    margin: 0.25rem 0.75rem 0.5rem;
+    padding: 0.4rem 0.5rem 0.4rem 0.8rem;
+    border: 1px solid rgba(var(--c-primary-rgb), 0.4);
+    border-radius: 12px;
+    background: var(--btn-fill-hover);
+    gap: 0.35rem;
+}
+
+body.glass .notes-sidebar .batch-count {
+    color: var(--c-text-main);
+}
+
+/* ---- admin layout: one set of measurements for the dashboard and the notes editor ---------------------------------
+   Before, each page positioned its panes with its own numbers (percent tops, 12 / 17 / 20 / 24px edges and gaps), the header
+   was a different height on each page, and the notes panes did not follow the sidebar when it collapsed. Now the sidebar,
+   the dashboard content, the notes list and the editor are all placed from the same few variables, and they all move
+   together (with the same 0.3s ease) when the sidebar collapses. */
+@media (min-width: 769px) {
+    body.glass.admin-page {
+        --adm-header-h: 88px;
+        --adm-top: calc(var(--adm-header-h) + 14px);   /* where every pane starts */
+        --adm-edge: 20px;                              /* page edge: left, right and bottom */
+        --adm-gap: 16px;                               /* between panes */
+        --adm-side-w: 203px;                           /* the sidebar */
+        --adm-notes-w: 282px;                          /* the notes list */
+        --adm-col: calc(var(--adm-edge) + var(--adm-side-w) + var(--adm-gap));   /* left edge of what sits beside the sidebar */
+    }
+
+    body.glass.admin-page:has(.admin-sidebar.collapsed) {
+        --adm-side-w: 66px;   /* icon (36px) + the same 15px either side that it has when the sidebar is open */
+    }
+
+    /* Sliding the sidebar: only its width moves. The icons sit at the same x whether it is open or closed (so they
+       don't jump when it collapses), the labels fade instead of vanishing the instant you click (they are clipped by the
+       shrinking pane), and the collapse button keeps one position that is centred in the narrow state. */
+    body.glass.admin-page .admin-sidebar.collapsed .sidebar-nav a,
+    body.glass.admin-page .admin-sidebar.collapsed .sidebar-brand {
+        justify-content: flex-start;
+    }
+
+    body.glass.admin-page .admin-sidebar.collapsed .sidebar-brand {
+        padding: 0.875rem;
+    }
+
+    body.glass.admin-page .admin-sidebar .nav-text,
+    body.glass.admin-page .admin-sidebar .brand-text {
+        transition: opacity 0.2s ease 0.12s;      /* opening: wait until there is room */
+    }
+
+    body.glass.admin-page .admin-sidebar.collapsed .nav-text,
+    body.glass.admin-page .admin-sidebar.collapsed .brand-text {
+        display: block;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.1s ease;            /* closing: get out of the way quickly */
+    }
+
+    body.glass.admin-page .sidebar-toggle-btn,
+    body.glass.admin-page .admin-sidebar.collapsed .sidebar-toggle-btn {
+        align-self: flex-end;
+        margin: auto 14px 0.75rem 0;
+    }
+
+    /* same header height on every admin page, with same-size buttons in it */
+    body.glass.admin-page .app-header {
+        height: var(--adm-header-h);
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body.glass.admin-page .app-header .app-container {
+        height: 100%;
+    }
+
+    body.glass.admin-page .app-header .header-actions .btn {
+        height: 36px;
+        padding: 0 1rem;
+        font-size: 0.8125rem;
+        font-weight: 500;
+    }
+
+    body.glass.admin-page .admin-sidebar {
+        left: var(--adm-edge);
+        top: var(--adm-top);
+        bottom: var(--adm-edge);
+        height: auto;
+        width: var(--adm-side-w);
+    }
+
+    body.glass.admin-page .admin-content {
+        margin-left: var(--adm-col);
+        width: calc(100vw - var(--adm-col));
+        height: calc(100vh - var(--adm-header-h));
+        padding: 14px var(--adm-edge) var(--adm-edge) 0;
+    }
+
+    body.glass.admin-page .stats-grid {
+        gap: var(--adm-gap);
+        margin-bottom: var(--adm-gap);
+    }
+
+    /* the tab panel stopped at 97% of its box, ending short of the sidebar's bottom edge */
+    body.glass.admin-page .monitor-tab-panel {
+        height: 100%;
+    }
+
+    body.glass.admin-page .admin-content .notes-sidebar {
+        left: var(--adm-col);
+        top: var(--adm-top);
+        bottom: var(--adm-edge);
+        width: var(--adm-notes-w);
+    }
+
+    body.glass.admin-page .editor-main {
+        left: calc(var(--adm-col) + var(--adm-notes-w) + var(--adm-gap));
+        top: var(--adm-top);
+        right: var(--adm-edge);
+        bottom: var(--adm-edge);
+        transition: left 0.3s ease;
+    }
+}
+
+/* ---- text editor: the home page buffer editor (EasyMDE) ----------------------------------------------------------
+   Their own stylesheets fill the active buttons solid, give the buttons no gaps and use !important everywhere, so these
+   rules do too. Same language as the rest: spaced outline buttons, hover = tinted fill + accent ring, and "on" (bold,
+   italic, a list...) = solid accent, so it is obvious. An open dropdown is a tint, since it is open, not on. */
+
+/* -- home page buffer editor (EasyMDE) -- */
+body.glass .EasyMDEContainer {
+    border: 1px solid var(--btn-border) !important;
+    border-radius: 14px !important;
+    background-color: var(--glass-bg-soft) !important;
+    overflow: hidden;
+}
+
+body.glass .EasyMDEContainer .editor-toolbar {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 4px !important;
+    padding: 0.5rem 0.6rem !important;
+    background-color: transparent !important;
+    border-bottom: 1px solid var(--glass-line) !important;
+    border-radius: 0 !important;
+}
+
+body.glass .EasyMDEContainer .editor-toolbar::before,
+body.glass .EasyMDEContainer .editor-toolbar::after {
+    display: none !important;
+}
+
+body.glass .EasyMDEContainer .editor-toolbar button {
+    width: 30px !important;
+    height: 30px !important;
+    margin: 0 !important;
+    border: 1px solid transparent !important;
+    border-radius: 8px !important;
+    background-color: transparent !important;
+    color: var(--c-text-main) !important;
+    transition: background-color 0.14s ease, border-color 0.14s ease !important;
+}
+
+body.glass .EasyMDEContainer .editor-toolbar button:hover {
+    background-color: var(--btn-fill-hover) !important;
+    border-color: rgba(var(--c-primary-rgb), 0.65) !important;
+    border-radius: 8px !important;
+}
+
+/* bold / italic / heading switch on by themselves as the cursor moves: solid accent so it is obvious what is on */
+body.glass .EasyMDEContainer .editor-toolbar button.active,
+body.glass .EasyMDEContainer .editor-toolbar button.active:hover {
+    background-color: var(--c-primary) !important;
+    border-color: var(--c-primary) !important;
+    border-radius: 8px !important;
+    color: var(--c-primary-text) !important;
+}
+
+body.glass .EasyMDEContainer .editor-toolbar i.separator {
+    align-self: center;
+    height: 18px;
+    margin: 0 6px !important;
+    border-left: 1px solid var(--glass-line) !important;
+    border-right: none !important;
+    color: transparent !important;
+}
+
+body.glass .EasyMDEContainer .CodeMirror,
+body.glass .EasyMDEContainer .editor-statusbar {
+    background-color: transparent !important;
+}
+
+body.glass .EasyMDEContainer .editor-statusbar {
+    border-top: 1px solid var(--glass-line) !important;
+}
+
+/* ---- fallbacks ------------------------------------------------------------------------------------------- */
+/* people who ask the OS for less transparency get solid surfaces */
+@media (prefers-reduced-transparency: reduce) {
+    :root { --glass-bg: var(--c-surface); --glass-bg-soft: var(--c-surface); --glass-bg-strong: var(--c-surface); --glass-blur-float: none; }
+    body.glass .panel::before,
+    body.glass .stat-card::before,
+    body.glass .monitor-tab-panel::before { display: none; }
+    body.glass .mobile-bottom-nav,
+    body.glass .modal-overlay.visible,
+    body.glass .snail-modal-overlay.visible { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}

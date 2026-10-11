@@ -1,0 +1,211 @@
+/* static/css/chat-glass.css - BugByte chat in the same glass / outline-button skin as the rest of SnailSynk.
+   Loaded after chat.css; every rule is under body.glass so it only applies when glass.css is active.
+   Tokens (--glass-*, --btn-*) come from glass.css, so light, True Black and the accent colours all follow. */
+
+/* The app used to be a full-screen opaque sheet; now the page grid and the pointer effect show behind two glass panes */
+body.glass .bugbyte-app {
+    background: transparent;
+}
+
+/* ---- the two panes (desktop): the conversation list and the chat itself ------------------------------------ */
+@media (min-width: 769px) {
+    body.glass .bugbyte-app {
+        padding: 20px;
+        gap: 16px;
+        box-sizing: border-box;
+    }
+
+    body.glass .bb-sidebar,
+    body.glass .bb-main {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-edge);
+        border-radius: var(--glass-radius, 20px);
+        box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-edge);
+        overflow: hidden;
+    }
+}
+
+/* on phones the list slides over the chat, so it needs to stay readable */
+@media (max-width: 768px) {
+    body.glass .bugbyte-app {
+        background: var(--c-bg);
+    }
+
+    body.glass .bb-sidebar {
+        background: var(--glass-bg-strong);
+        border-right: 1px solid var(--glass-edge);
+    }
+}
+
+/* ---- sidebar ------------------------------------------------------------------------------------------------- */
+body.glass .bb-sidebar-header,
+body.glass .bb-sidebar-footer {
+    border-color: var(--glass-line);
+}
+
+body.glass .bb-sidebar-search input {
+    padding: 0.55rem 0.8rem;
+    border: 1px solid var(--btn-border);
+    border-radius: 12px;
+    background: var(--glass-bg-soft);
+}
+
+body.glass .bb-sidebar-search input:focus {
+    border-color: rgba(var(--c-primary-rgb), 0.55);
+    box-shadow: 0 0 0 4px rgba(var(--c-primary-rgb), 0.14);
+}
+
+body.glass .bb-conv-item {
+    border-radius: 10px;
+    transition: background-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+body.glass .bb-conv-item:hover {
+    background: var(--glass-item-hover);
+}
+
+/* the open conversation: accent tint + ring, same as the open note in the notes list */
+body.glass .bb-conv-item.active {
+    background: var(--btn-fill-hover);
+    box-shadow: inset 0 0 0 1px rgba(var(--c-primary-rgb), 0.55);
+}
+
+body.glass .bb-conv-item.active::before {
+    display: none;
+}
+
+/* ---- buttons: outlined / ghost, like everywhere else ----------------------------------------------------------- */
+body.glass .bb-new-chat-btn,
+body.glass .bb-image-btn,
+body.glass .bb-msg-action,
+body.glass .bb-copy-code-btn,
+body.glass .bb-sidebar-toggle,
+body.glass .bb-mobile-back-btn,
+body.glass .bb-scroll-bottom {
+    background: transparent;
+    border: 1px solid var(--btn-outline);
+    border-radius: 10px;
+    color: var(--c-text-main);
+    box-shadow: none;
+    transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+body.glass .bb-new-chat-btn:hover,
+body.glass .bb-image-btn:hover,
+body.glass .bb-msg-action:hover,
+body.glass .bb-copy-code-btn:hover,
+body.glass .bb-sidebar-toggle:hover,
+body.glass .bb-mobile-back-btn:hover,
+body.glass .bb-scroll-bottom:hover {
+    background: var(--btn-fill-hover);
+    border-color: rgba(var(--c-primary-rgb), 0.65);
+    color: var(--c-text-main);
+    transform: none;
+}
+
+body.glass .bb-scroll-bottom {
+    border-radius: 50%;
+    background: var(--glass-bg-strong);
+}
+
+/* the scroll button is centred with a transform, so keep that and drop only the hover growth */
+body.glass .bb-scroll-bottom.visible:hover {
+    transform: translateX(-50%);
+}
+
+body.glass .bb-msg-action {
+    border-radius: 8px;
+}
+
+body.glass .bb-copy-code-btn {
+    border-radius: 8px;
+    color: var(--c-text-muted);
+}
+
+/* send / stop: flat solid accent, same as the primary buttons */
+body.glass .bb-send-btn,
+body.glass .bb-stop-btn {
+    background: var(--c-primary);
+    color: var(--c-primary-text);
+    border-radius: 12px;
+}
+
+body.glass .bb-send-btn:hover:not(:disabled),
+body.glass .bb-stop-btn:hover {
+    background: var(--c-accent);
+    filter: none;
+    transform: none;
+}
+
+/* ---- welcome screen ------------------------------------------------------------------------------------------- */
+body.glass .bb-suggestion {
+    background: var(--glass-bg-soft);
+    border: 1px solid var(--btn-outline);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+
+body.glass .bb-suggestion::before {
+    display: none;
+}
+
+body.glass .bb-suggestion:hover {
+    background: var(--btn-fill-hover);
+    border-color: rgba(var(--c-primary-rgb), 0.65);
+    transform: none;
+    box-shadow: none;
+}
+
+/* ---- messages ------------------------------------------------------------------------------------------------- */
+body.glass .bb-msg.user .bb-msg-bubble {
+    background: var(--c-primary);
+    color: var(--c-primary-text);
+}
+
+body.glass .bb-msg.ai .bb-msg-bubble {
+    background: var(--glass-item-hover);
+    border: 1px solid var(--btn-border);
+    color: var(--c-text-main);
+}
+
+body.glass .bb-code-block {
+    background: var(--glass-bg-soft);
+    border: 1px solid var(--btn-border);
+    border-radius: 12px;
+}
+
+html:not(.dark) body.glass .bb-code-block {
+    background: rgba(23, 23, 23, 0.045);
+}
+
+body.glass .bb-code-header {
+    background: var(--glass-item-hover);
+    border-bottom: 1px solid var(--glass-line);
+}
+
+/* the syntax theme paints its own opaque background on the code; let the block's surface show instead */
+body.glass .bb-code-block pre code.hljs {
+    background: transparent;
+}
+
+body.glass .bb-msg-bubble .md-content code:not(pre code) {
+    background: var(--glass-item-hover);
+}
+
+/* ---- input ---------------------------------------------------------------------------------------------------- */
+body.glass .bb-input-wrapper {
+    background: var(--glass-bg-soft);
+    border: 1px solid var(--btn-border);
+    border-radius: 16px;
+    box-shadow: inset 0 2px 8px rgba(31, 38, 60, 0.05);
+}
+
+body.glass .bb-input-wrapper:focus-within {
+    border-color: rgba(var(--c-primary-rgb), 0.55);
+    box-shadow: 0 0 0 4px rgba(var(--c-primary-rgb), 0.14);
+}
+
+body.glass .bb-image-preview-item {
+    border-color: var(--btn-border);
+}

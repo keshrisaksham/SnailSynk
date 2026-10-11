@@ -33,6 +33,18 @@ async function copyToClipboard(text) {
 }
 
 // --- UTILITY: Create a flash message ---
+// Escape text for safe use inside HTML text or quoted attribute values.
+function escapeHtmlText(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+// Sanitize an HTML string that came from untrusted text (markdown of shared text, AI replies).
+// If DOMPurify failed to load, fall back to showing the text literally rather than rendering it.
+function sanitizeHtml(html) {
+    if (typeof DOMPurify !== 'undefined') return DOMPurify.sanitize(html);
+    return escapeHtmlText(html);
+}
+
 function flash(message, category = 'info') {
     const flashMessagesContainer = document.querySelector('.flash-messages') || document.createElement('ul');
     if (!document.querySelector('.flash-messages')) {
@@ -41,12 +53,48 @@ function flash(message, category = 'info') {
     }
     const li = document.createElement('li');
     li.className = category;
-    li.innerHTML = `<span>${message}</span><button class="close-flash">×</button>`;
+    const msgSpan = document.createElement('span');
+    msgSpan.textContent = message;   // never interpret messages (they can contain file names) as HTML
+    const closeEl = document.createElement('button');
+    closeEl.className = 'close-flash';
+    closeEl.textContent = '×';
+    li.append(msgSpan, closeEl);
     flashMessagesContainer.prepend(li);
     const closeBtn = li.querySelector('.close-flash');
     const dismiss = () => { li.style.opacity = '0'; setTimeout(() => li.remove(), 300); };
     closeBtn.addEventListener('click', dismiss);
     setTimeout(dismiss, 5000);
+}
+
+// --- UTILITY: Format bytes to human readable string ---
+function formatBytes(bytes, decimals = 2) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+// --- UTILITY: Format speed (bytes/sec) ---
+function formatSpeed(bytesPerSecond) {
+    if (bytesPerSecond < 1024) {
+        return bytesPerSecond.toFixed(0) + ' B/s';
+    }
+    return formatBytes(bytesPerSecond) + '/s';
+}
+
+// --- UTILITY: Format seconds to time string ---
+function formatTime(seconds) {
+    if (seconds === Infinity || isNaN(seconds)) return '--:--';
+    if (seconds < 0) seconds = 0;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    if (h > 0) {
+        return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
 
@@ -199,31 +247,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     </button>` : '';
                 const folderDownloadBtn = isAdmin ? `
-                    <button type="button" class="btn-icon folder-download-btn" title="Download folder ${item.name}" data-folder-name="${item.name}">
+                    <button type="button" class="btn-icon folder-download-btn" title="Download folder ${escapeHtmlText(item.name)}" data-folder-name="${escapeHtmlText(item.name)}">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                     </button>` : '';
                 const folderRenameBtn = isAdmin ? `
-                    <button type="button" class="btn-icon rename-folder-btn" title="Rename folder ${item.name}" data-folder-name="${item.name}">
+                    <button type="button" class="btn-icon rename-folder-btn" title="Rename folder ${escapeHtmlText(item.name)}" data-folder-name="${escapeHtmlText(item.name)}">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path><path d="m15 5 4 4"></path></svg>
                     </button>` : '';
                 const folderDeleteBtn = isAdmin ? `
-                    <button type="button" class="btn-icon delete-folder-btn" title="Delete folder ${item.name}" data-folder-name="${item.name}">
+                    <button type="button" class="btn-icon delete-folder-btn" title="Delete folder ${escapeHtmlText(item.name)}" data-folder-name="${escapeHtmlText(item.name)}">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     </button>` : '';
                 const folderShareBtn = isAdmin ? `
-                    <button type="button" class="btn-icon file-share-btn" title="Share folder ${item.name}" data-filename="${item.name}" data-type="folder">
+                    <button type="button" class="btn-icon file-share-btn" title="Share folder ${escapeHtmlText(item.name)}" data-filename="${escapeHtmlText(item.name)}" data-type="folder">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
                     </button>` : '';
                 const lockedBadge = folderLocked ? ' <span style="color:var(--c-text-muted); font-size:0.75rem;">🔒</span>' : '';
                 const isFav = item.is_favorite;
                 const favClass = isFav ? ' favorite-row' : '';
                 rowsHtml += `
-                    <tr data-file-row="${item.encoded_name}" data-sort-name="${item.name.toLowerCase()}" data-sort-date="${item.mtime}" data-sort-size="${item.size || 0}" data-favorite="${isFav ? 'true' : 'false'}" data-type="folder" class="folder-row${favClass}">
-                        <td style="text-align: center;"><input type="checkbox" name="selected_files" value="${item.name}" class="file-checkbox"${isAdmin ? '' : ' disabled'}></td>
+                    <tr data-file-row="${item.encoded_name}" data-sort-name="${escapeHtmlText(item.name.toLowerCase())}" data-sort-date="${item.mtime}" data-sort-size="${item.size || 0}" data-favorite="${isFav ? 'true' : 'false'}" data-type="folder" class="folder-row${favClass}">
+                        <td style="text-align: center;"><input type="checkbox" name="selected_files" value="${escapeHtmlText(item.name)}" class="file-checkbox"${isAdmin ? '' : ' disabled'}></td>
                         <td>
-                            <a href="javascript:void(0)" class="folder-link" data-folder-name="${item.name}" data-folder-path="${item.encoded_name}" title="Open ${item.name}">
+                            <a href="javascript:void(0)" class="folder-link" data-folder-name="${escapeHtmlText(item.name)}" data-folder-path="${item.encoded_name}" title="Open ${escapeHtmlText(item.name)}">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-                                ${item.name}${lockedBadge}
+                                ${escapeHtmlText(item.name)}${lockedBadge}
                             </a>
                         </td>
                         <td class="index-file-actions">${folderDownloadBtn}${folderLockBtn}${folderRenameBtn}${folderDeleteBtn}${folderShareBtn}</td>
@@ -234,30 +282,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 const lockIcon = item.is_locked
                     ? `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`
                     : `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>`;
+                // Copy-image button: visible for all users, but only for image files
+                const imgExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp'];
+                const fileExt = item.name.includes('.') ? item.name.substring(item.name.lastIndexOf('.')).toLowerCase() : '';
+                const openImgBtn = imgExts.includes(fileExt) ? `
+                    <button type="button" class="btn-icon file-open-img-btn" title="Open image in a new tab" data-filename="${item.encoded_name}">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                    </button>` : '';
+                const copyImgBtn = imgExts.includes(fileExt) ? `
+                    <button type="button" class="btn-icon file-copy-img-btn" title="Copy image to clipboard" data-filename="${item.encoded_name}">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    </button>` : '';
                 const adminButtons = isAdmin ? `
-                    <button type="button" class="btn-icon rename-file-btn" title="Rename ${item.name}" data-filename="${item.name}">
+                    <button type="button" class="btn-icon rename-file-btn" title="Rename ${escapeHtmlText(item.name)}" data-filename="${escapeHtmlText(item.name)}">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path><path d="m15 5 4 4"></path></svg>
                     </button>
-                    <button type="button" class="btn-icon file-move-btn" title="Move ${item.name}" data-filename="${item.name}" data-encoded="${item.encoded_name}">
+                    <button type="button" class="btn-icon file-move-btn" title="Move ${escapeHtmlText(item.name)}" data-filename="${escapeHtmlText(item.name)}" data-encoded="${item.encoded_name}">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"></path><path d="M10 14L21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>
                     </button>
                     <button type="button" class="btn-icon file-lock-btn" title="${lockTitle}" data-filename="${item.encoded_name}">${lockIcon}</button>
-                    <button type="button" class="btn-icon delete-file-btn" title="Delete ${item.name}" data-filename="${item.encoded_name}">
+                    <button type="button" class="btn-icon delete-file-btn" title="Delete ${escapeHtmlText(item.name)}" data-filename="${item.encoded_name}">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     </button>
-                    <button type="button" class="btn-icon file-share-btn" title="Share ${item.name}" data-filename="${item.name}">
+                    <button type="button" class="btn-icon file-share-btn" title="Share ${escapeHtmlText(item.name)}" data-filename="${escapeHtmlText(item.name)}">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
                     </button>
-                    <button type="button" class="btn-icon file-favorite-btn${item.is_favorite ? ' active' : ''}" title="${item.is_favorite ? 'Unstar' : 'Star'} ${item.name}" data-filename="${item.name}">
+                    <button type="button" class="btn-icon file-favorite-btn${item.is_favorite ? ' active' : ''}" title="${item.is_favorite ? 'Unstar' : 'Star'} ${escapeHtmlText(item.name)}" data-filename="${escapeHtmlText(item.name)}">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${item.is_favorite ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
                     </button>` : '';
                 const fileFavClass = item.is_favorite ? ' favorite-row' : '';
                 rowsHtml += `
-                    <tr data-file-row="${item.encoded_name}" data-sort-name="${item.name.toLowerCase()}" data-sort-date="${item.mtime}" data-sort-size="${item.size || 0}" data-favorite="${item.is_favorite ? 'true' : 'false'}" data-type="file" class="${fileFavClass}">
-                        <td style="text-align: center;"><input type="checkbox" name="selected_files" value="${item.name}" class="file-checkbox"></td>
-                        <td><a href="/files/${item.encoded_name}" download title="Download ${item.name}" class="file-link-preview" data-filename="${item.encoded_name}" data-locked="${lockedAttr}">${item.name}</a></td>
+                    <tr data-file-row="${item.encoded_name}" data-sort-name="${escapeHtmlText(item.name.toLowerCase())}" data-sort-date="${item.mtime}" data-sort-size="${item.size || 0}" data-favorite="${item.is_favorite ? 'true' : 'false'}" data-type="file" class="${fileFavClass}">
+                        <td style="text-align: center;"><input type="checkbox" name="selected_files" value="${escapeHtmlText(item.name)}" class="file-checkbox"></td>
+                        <td><a href="/files/${item.encoded_name}" download title="Download ${escapeHtmlText(item.name)}" class="file-link-preview" data-filename="${item.encoded_name}" data-locked="${lockedAttr}">${escapeHtmlText(item.name)}</a></td>
                         <td class="index-file-actions">
-                            <a href="/files/${item.encoded_name}" class="btn-icon file-download-link" title="Download ${item.name}" data-filename="${item.encoded_name}" data-locked="${lockedAttr}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></a>
+                            <a href="/files/${item.encoded_name}" class="btn-icon file-download-link" title="Download ${escapeHtmlText(item.name)}" data-filename="${item.encoded_name}" data-locked="${lockedAttr}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></a>
+                            ${openImgBtn}
+                            ${copyImgBtn}
                             ${adminButtons}
                         </td>
                     </tr>`;
@@ -268,38 +329,108 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function reinitializeFileActions() {
+        ensureMoreButtons();
         updateDownloadSelectedButtonState();
         rebindImagePreviews();
         rebindSearchAndSort();
         bindFolderActions();
+        bindLockedFileHandlers();
+    }
+
+    // --- LOCKED FILE DOWNLOAD INTERCEPTION ---
+    function bindLockedFileHandlers() {
+        // Intercept clicks on locked file links (filename click and download button) — applies to ALL users
+        document.querySelectorAll('.file-link-preview[data-locked="true"], .file-download-link[data-locked="true"]').forEach(link => {
+            if (link.dataset.lockHandlerBound === 'true') return;
+            link.dataset.lockHandlerBound = 'true';
+
+            link.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const encodedFilename = link.dataset.filename;
+                const filepath = currentPath ? `${currentPath}/${decodeURIComponent(encodedFilename)}` : decodeURIComponent(encodedFilename);
+
+                const password = await snailPrompt(
+                    '🔒 File Locked',
+                    'This file is encrypted. Enter the password to download it:',
+                    { type: 'password', placeholder: 'Enter password...', confirmText: 'Unlock & Download' }
+                );
+                if (!password) return;
+
+                try {
+                    const verifyRes = await fetch('/api/file/verify_password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filepath, password })
+                    });
+                    const verifyData = await verifyRes.json();
+                    if (verifyRes.ok && verifyData.success) {
+                        flash('File unlocked. Starting download...', 'success');
+                        // Now trigger the actual download
+                        window.location.href = `/files/${encodedFilename}`;
+                    } else {
+                        flash(`[ERR] ${verifyData.error || 'Incorrect password.'}`, 'error');
+                    }
+                } catch (err) {
+                    console.error('Error verifying file password:', err);
+                    flash('[ERR] Failed to verify password.', 'error');
+                }
+            });
+        });
     }
 
     // --- FOLDER NAVIGATION ---
     function navigateToFolder(path) {
-        currentPath = path;
-        // Sync hidden subpath inputs
-        const uploadSubpath = document.getElementById('uploadSubpath');
-        const downloadSubpath = document.getElementById('downloadSubpath');
-        if (uploadSubpath) uploadSubpath.value = path;
-        if (downloadSubpath) downloadSubpath.value = path;
-
-        // Update upload description to show current upload target
-        const uploadDesc = document.querySelector('.upload-section .section-description');
-        if (uploadDesc) {
-            uploadDesc.textContent = path
-                ? `Uploading to folder: ${path}`
-                : 'Select or drag files to upload to the shared directory.';
-        }
-
-        renderBreadcrumbs(path);
-
+        // Don't update currentPath or breadcrumbs until we confirm access
         fetch(`/api/files/list?path=${encodeURIComponent(path)}`)
-            .then(res => res.json())
-            .then(data => {
+            .then(async res => {
+                const data = await res.json();
+
+                if (!res.ok && data.is_locked) {
+                    // Folder is locked — prompt user for password
+                    const password = await snailPrompt(
+                        '🔒 Folder Locked',
+                        'This folder is encrypted. Enter the password to access it:',
+                        { type: 'password', placeholder: 'Enter password...', confirmText: 'Unlock' }
+                    );
+                    if (!password) return; // User cancelled
+
+                    // Verify password with backend
+                    const verifyRes = await fetch('/api/folder/verify_password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path, password })
+                    });
+                    const verifyData = await verifyRes.json();
+                    if (verifyRes.ok && verifyData.success) {
+                        flash('Folder unlocked successfully.', 'success');
+                        // Retry navigation now that the folder is unlocked in the session
+                        navigateToFolder(path);
+                    } else {
+                        flash(`[ERR] ${verifyData.error || 'Incorrect password.'}`, 'error');
+                    }
+                    return;
+                }
+
                 if (data.success) {
+                    // Access granted — now update state
+                    currentPath = path;
+                    const uploadSubpath = document.getElementById('uploadSubpath');
+                    const downloadSubpath = document.getElementById('downloadSubpath');
+                    if (uploadSubpath) uploadSubpath.value = path;
+                    if (downloadSubpath) downloadSubpath.value = path;
+
+                    const uploadDesc = document.querySelector('.upload-section .section-description');
+                    if (uploadDesc) {
+                        uploadDesc.textContent = path
+                            ? `Uploading to folder: ${path}`
+                            : 'Select or drag files or folders to upload to the shared directory.';
+                    }
+
+                    renderBreadcrumbs(path);
                     renderFileList(data.files);
                     reinitializeFileActions();
-                    // Update upload section visibility based on folder lock state
+
                     const uploadSection = document.querySelector('.upload-section');
                     const isAdminUser = !!document.getElementById('lockSelectedBtn');
                     if (uploadSection) {
@@ -334,7 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 accumulated += (i > 0 ? '/' : '') + part;
                 const isLast = i === parts.length - 1;
                 html += `<span class="breadcrumb-separator">/</span>`;
-                html += `<span class="breadcrumb-item ${isLast ? 'breadcrumb-active' : ''}" data-path="${accumulated}">${decodeURIComponent(part)}</span>`;
+                html += `<span class="breadcrumb-item ${isLast ? 'breadcrumb-active' : ''}" data-path="${escapeHtmlText(accumulated)}">${escapeHtmlText(part)}</span>`;
             });
         }
         breadcrumbNav.innerHTML = html;
@@ -390,23 +521,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 const folderPath = decodeURIComponent(btn.dataset.folderPath);
                 const isLocked = btn.dataset.locked === 'true';
-                const endpoint = isLocked ? '/api/folder/unlock' : '/api/folder/lock';
-                const action = isLocked ? 'Unlock' : 'Lock';
-                const password = await snailPrompt(`${action} Folder`, `Enter a password to ${action.toLowerCase()} this folder:`, { type: 'password', placeholder: 'Enter password...', confirmText: action });
-                if (!password) return;
-                setStatus(`[INFO] ${action}ing folder...`, 'info', 60000);
-                try {
-                    const response = await fetch(endpoint, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ path: folderPath, password })
-                    });
-                    const result = await response.json();
-                    if (!response.ok) throw new Error(result.error || `Failed to ${action.toLowerCase()} folder.`);
-                    setStatus(`[OK] ${result.message}`, 'success');
-                } catch (error) {
-                    console.error(`Error ${action.toLowerCase()}ing folder:`, error);
-                    setStatus(`[ERR] ${error.message}`, 'error');
+                if (isLocked) {
+                    const confirmed = await snailConfirm('Remove Folder Lock', `Are you sure you want to remove the lock from this folder?`);
+                    if (!confirmed) return;
+                    setStatus('[INFO] Removing folder lock...', 'info', 60000);
+                    try {
+                        const response = await fetch('/api/folder/remove_lock', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ path: folderPath })
+                        });
+                        const result = await response.json();
+                        if (!response.ok) throw new Error(result.error || 'Failed to remove folder lock.');
+                        setStatus(`[OK] ${result.message}`, 'success');
+                    } catch (error) {
+                        console.error('Error removing folder lock:', error);
+                        setStatus(`[ERR] ${error.message}`, 'error');
+                    }
+                } else {
+                    const password = await snailPrompt('Lock Folder', 'Enter a password to lock this folder:', { type: 'password', placeholder: 'Enter password...', confirmText: 'Lock' });
+                    if (!password) return;
+                    setStatus('[INFO] Locking folder...', 'info', 60000);
+                    try {
+                        const response = await fetch('/api/folder/lock', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ path: folderPath, password })
+                        });
+                        const result = await response.json();
+                        if (!response.ok) throw new Error(result.error || 'Failed to lock folder.');
+                        setStatus(`[OK] ${result.message}`, 'success');
+                    } catch (error) {
+                        console.error('Error locking folder:', error);
+                        setStatus(`[ERR] ${error.message}`, 'error');
+                    }
                 }
             });
         });
@@ -572,6 +720,75 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         });
+
+        // Open image in a new tab (all users): served inline by /view/, with the same lock rules as downloading
+        document.querySelectorAll('.file-open-img-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(`/view/${btn.dataset.filename}`, '_blank', 'noopener');
+            });
+        });
+
+        // Copy image to clipboard buttons (all users)
+        document.querySelectorAll('.file-copy-img-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const encodedFilename = btn.dataset.filename;
+                const decodedFilename = decodeURIComponent(encodedFilename);
+                setStatus(`[INFO] Copying image '${decodedFilename}' to clipboard...`, 'info', 10000);
+                try {
+                    // Fetch the image as base64 via the preview API
+                    const previewRes = await fetch(`/api/preview/${encodedFilename}`);
+                    if (!previewRes.ok) {
+                        const errData = await previewRes.json().catch(() => ({}));
+                        throw new Error(errData.error || 'Failed to fetch image.');
+                    }
+                    const previewData = await previewRes.json();
+                    if (!previewData.success || !previewData.data) {
+                        throw new Error('Image data not available.');
+                    }
+                    // Convert base64 data URI to blob
+                    const dataUri = previewData.data;
+                    const res = await fetch(dataUri);
+                    const blob = await res.blob();
+                    // Clipboard API requires image/png for best compatibility
+                    let clipboardBlob = blob;
+                    if (blob.type !== 'image/png') {
+                        // Convert to PNG via canvas for clipboard compatibility
+                        const img = new Image();
+                        const loadPromise = new Promise((resolve, reject) => {
+                            img.onload = resolve;
+                            img.onerror = () => reject(new Error('Failed to load image for conversion.'));
+                        });
+                        img.src = dataUri;
+                        await loadPromise;
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.naturalWidth;
+                        canvas.height = img.naturalHeight;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        clipboardBlob = await new Promise((resolve, reject) => {
+                            canvas.toBlob(b => b ? resolve(b) : reject(new Error('Canvas conversion failed.')), 'image/png');
+                        });
+                    }
+                    // Write to clipboard
+                    if (navigator.clipboard && navigator.clipboard.write) {
+                        await navigator.clipboard.write([
+                            new ClipboardItem({ 'image/png': clipboardBlob })
+                        ]);
+                        setStatus(`[OK] Image copied to clipboard!`, 'success');
+                        flash('[OK] Image copied to clipboard!', 'success');
+                    } else {
+                        throw new Error('Clipboard API not supported. Try using HTTPS.');
+                    }
+                } catch (error) {
+                    console.error('Error copying image to clipboard:', error);
+                    setStatus(`[ERR] ${error.message}`, 'error');
+                }
+            });
+        });
     }
 
     // New Folder button handler
@@ -597,8 +814,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Initial binding for server-rendered folder actions
-    bindFolderActions();
+    // Note: server-rendered folder actions are bound once by initializePage() -> reinitializeFileActions().
+    // Binding them here too attached every handler twice (e.g. folder ZIP downloaded twice).
 
     function rebindImagePreviews() {
         const imagePreviewPopup = document.getElementById('imagePreviewPopup');
@@ -677,29 +894,76 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- FILE UPLOAD LOGIC ---
+    // --- FILE UPLOAD LOGIC (files and whole folders) ---
     const uploadForm = document.getElementById('uploadForm');
     const fileInput = document.getElementById('fileInput');
+    const folderInput = document.getElementById('folderInput');
     const uploadButton = document.getElementById('uploadButton');
     const chooseButton = document.getElementById('chooseButton');
+    const chooseFolderButton = document.getElementById('chooseFolderButton');
     const clearUploadBtn = document.getElementById('clearUploadBtn');
     const fileDropZone = document.getElementById('fileDropZone');
     const fullPageDropZone = document.getElementById('fullPageDropZone');
     const progressContainer = document.getElementById('uploadProgressContainer');
     const progressBar = document.getElementById('uploadProgressBar');
-    let currentUploadXhr = null; // Track current upload for cancellation
+    let currentUploadXhr = null;      // the request in flight, so Cancel can abort it
+    let uploadCancelled = false;
+    let uploadInProgress = false;
+    let droppedSelection = null;      // {files, folders} when folders were dragged in (inputs can't hold those)
+
+    const MAX_FOLDER_FILES = 20000;                 // refuse absurdly big drops instead of freezing the tab
+    const BATCH_MAX_FILES = 100;                    // one request per ~100 files / ~64 MB: keeps each request small
+    const BATCH_MAX_BYTES = 64 * 1024 * 1024;       // and lets very large folders upload without one giant request
+    const JUNK_FILE_NAMES = new Set(['.ds_store', 'thumbs.db', 'desktop.ini']);
+    const isJunkFile = name => JUNK_FILE_NAMES.has(String(name).toLowerCase());
+
+    // What is currently selected: loose files plus folders [{name, items: [{file, path}]}].
+    // `path` is the file's path inside the folder it came from, e.g. "photos/2024/a.jpg".
+    function getSelection() {
+        if (droppedSelection) return droppedSelection;
+        const files = fileInput ? Array.from(fileInput.files) : [];
+        const folders = [];
+        if (folderInput && folderInput.files.length) {
+            const byName = new Map();
+            for (const file of folderInput.files) {
+                const path = file.webkitRelativePath || file.name;
+                if (isJunkFile(file.name)) continue;
+                const top = path.split('/')[0];
+                if (!byName.has(top)) byName.set(top, []);
+                byName.get(top).push({ file, path });
+            }
+            byName.forEach((items, name) => folders.push({ name, items }));
+        }
+        return { files, folders };
+    }
+
+    function selectionTotals(sel) {
+        const folderFiles = sel.folders.reduce((n, f) => n + f.items.length, 0);
+        const bytes = sel.files.reduce((n, f) => n + f.size, 0) +
+            sel.folders.reduce((n, f) => n + f.items.reduce((m, i) => m + i.file.size, 0), 0);
+        return { count: sel.files.length + folderFiles, folderFiles, bytes };
+    }
 
     function fileUploaded() {
         if (!fileInput || !uploadButton || !chooseButton || !fileDropZone) return;
-        if (fileInput.files.length > 0) {
+        const sel = getSelection();
+        const totals = selectionTotals(sel);
+        const hasSelection = sel.files.length > 0 || sel.folders.length > 0;
+        if (hasSelection) {
             fileDropZone.classList.add('file-selected');
-            let displayNames = Array.from(fileInput.files).map(file => {
-                const filename = file.name;
-                return filename.length > 25 ? filename.substring(0, 22) + '...' : filename;
-            });
-            fileDropZone.innerHTML = `<p><strong>Selected:</strong> ${displayNames.join(', ')}</p>`;
+            const shorten = n => n.length > 25 ? n.substring(0, 22) + '...' : n;
+            const labels = [
+                ...sel.folders.map(f => `📁 ${shorten(f.name)} (${f.items.length} file${f.items.length === 1 ? '' : 's'})`),
+                ...sel.files.map(f => shorten(f.name))
+            ];
+            const shown = labels.slice(0, 6).map(escapeHtmlText).join(', ') + (labels.length > 6 ? ` and ${labels.length - 6} more` : '');
+            fileDropZone.innerHTML = `<p><strong>Selected:</strong> ${shown}</p>`;
             chooseButton.textContent = 'Choose Another';
-            uploadButton.textContent = `Upload ${fileInput.files.length > 1 ? fileInput.files.length + ' Files' : 'Now'}`;
+            if (sel.folders.length && !sel.files.length) {
+                uploadButton.textContent = sel.folders.length === 1 ? 'Upload Folder' : `Upload ${sel.folders.length} Folders`;
+            } else {
+                uploadButton.textContent = `Upload ${totals.count > 1 || sel.folders.length ? (sel.folders.length + sel.files.length) + ' Items' : 'Now'}`;
+            }
             uploadButton.disabled = false;
             if (clearUploadBtn) {
                 clearUploadBtn.style.display = 'inline-flex';
@@ -707,7 +971,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
             fileDropZone.classList.remove('file-selected');
-            fileDropZone.innerHTML = '<p><strong>Drag & drop files here</strong> or click to select</p>';
+            fileDropZone.innerHTML = '<p><strong>Drag & drop files or folders here</strong> or click to select</p>';
             chooseButton.textContent = 'Choose File';
             uploadButton.textContent = 'Upload';
             uploadButton.disabled = true;
@@ -718,10 +982,89 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function clearFileSelection() {
-        if (fileInput) {
-            fileInput.value = '';
-            fileUploaded();
+        droppedSelection = null;
+        if (folderInput) folderInput.value = '';
+        if (fileInput) fileInput.value = '';
+        fileUploaded();
+    }
+
+    // Choosing files and choosing a folder are alternatives: picking one replaces the other
+    if (fileInput) fileInput.addEventListener('change', () => { droppedSelection = null; if (folderInput) folderInput.value = ''; fileUploaded(); });
+    if (folderInput) folderInput.addEventListener('change', () => {
+        droppedSelection = null; if (fileInput) fileInput.value = '';
+        if (folderInput.files.length === 0) { fileUploaded(); return; }
+        if (folderInput.files.length > MAX_FOLDER_FILES) {
+            flash(`[ERR] That folder has ${folderInput.files.length.toLocaleString()} files; the limit is ${MAX_FOLDER_FILES.toLocaleString()}. Upload it in parts or zip it first.`, 'error');
+            folderInput.value = '';
         }
+        fileUploaded();
+    });
+
+    // --- Reading dropped folders (the file inputs cannot receive these) ---
+    function readAllEntries(reader) {
+        return new Promise((resolve, reject) => {
+            const all = [];
+            const readMore = () => reader.readEntries(batch => {
+                if (!batch.length) return resolve(all);
+                all.push(...batch);
+                readMore();            // readEntries returns at most ~100 entries per call
+            }, reject);
+            readMore();
+        });
+    }
+    const entryToFile = entry => new Promise((resolve, reject) => entry.file(resolve, reject));
+
+    async function walkEntry(entry, prefix, out, limit) {
+        if (out.length > limit) return;
+        if (entry.isFile) {
+            if (isJunkFile(entry.name)) return;
+            out.push({ file: await entryToFile(entry), path: prefix + entry.name });
+        } else if (entry.isDirectory) {
+            const children = await readAllEntries(entry.createReader());
+            for (const child of children) await walkEntry(child, `${prefix}${entry.name}/`, out, limit);
+        }
+    }
+
+    // Returns {files, folders}, or null when the drop holds plain files only (the normal path handles those).
+    async function selectionFromDrop(dataTransfer) {
+        const items = dataTransfer.items ? Array.from(dataTransfer.items).filter(i => i.kind === 'file') : [];
+        const entries = items.map(i => (i.webkitGetAsEntry ? i.webkitGetAsEntry() : null)).filter(Boolean);
+        if (!entries.some(e => e.isDirectory)) return null;
+        const sel = { files: [], folders: [] };
+        let total = 0;
+        for (const entry of entries) {
+            if (entry.isDirectory) {
+                const collected = [];
+                await walkEntry(entry, '', collected, MAX_FOLDER_FILES - total);
+                total += collected.length;
+                if (total > MAX_FOLDER_FILES) {
+                    flash(`[ERR] Too many files in the dropped folders (limit ${MAX_FOLDER_FILES.toLocaleString()}). Upload them in parts or zip them first.`, 'error');
+                    return { files: [], folders: [] };
+                }
+                sel.folders.push({ name: entry.name, items: collected });
+            } else if (!isJunkFile(entry.name)) {
+                sel.files.push(await entryToFile(entry));
+                total++;
+            }
+        }
+        return sel;
+    }
+
+    async function handleDrop(dataTransfer) {
+        if (uploadInProgress) { flash('[INFO] Wait for the current upload to finish, or cancel it first.', 'info'); return; }
+        let sel = null;
+        try { sel = await selectionFromDrop(dataTransfer); }
+        catch (err) { console.error('Could not read the dropped folder:', err); flash('[ERR] Could not read the dropped folder.', 'error'); return; }
+        if (sel) {                       // folders were dropped
+            if (folderInput) folderInput.value = '';
+            if (fileInput) fileInput.value = '';
+            droppedSelection = (sel.files.length || sel.folders.length) ? sel : null;
+        } else {                         // plain files, as before
+            droppedSelection = null;
+            if (folderInput) folderInput.value = '';
+            fileInput.files = dataTransfer.files;
+        }
+        fileUploaded();
     }
 
     if (fileDropZone) {
@@ -730,8 +1073,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fileDropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             fileDropZone.classList.remove('drag-over');
-            document.getElementById('fileInput').files = e.dataTransfer.files;
-            fileUploaded();
+            handleDrop(e.dataTransfer);
         });
         fileDropZone.addEventListener('click', () => { document.getElementById('fileInput').click(); });
     }
@@ -746,85 +1088,202 @@ document.addEventListener('DOMContentLoaded', () => {
             dragCounter = 0;
             fullPageDropZone.classList.remove('active');
             if (e.target.id !== 'fileDropZone' && !fileDropZone.contains(e.target)) {
-                fileInput.files = e.dataTransfer.files;
-                fileUploaded();
+                handleDrop(e.dataTransfer);
             }
         });
     }
 
+    // --- Sending ---
+    // Split [{file, path?}] into requests of at most BATCH_MAX_FILES files / BATCH_MAX_BYTES bytes
+    function makeBatches(items) {
+        const batches = [];
+        let current = [], bytes = 0;
+        for (const item of items) {
+            if (current.length && (current.length >= BATCH_MAX_FILES || bytes + item.file.size > BATCH_MAX_BYTES)) {
+                batches.push(current); current = []; bytes = 0;
+            }
+            current.push(item); bytes += item.file.size;
+        }
+        if (current.length) batches.push(current);
+        return batches;
+    }
+
+    // One XMLHttpRequest as a promise. onProgress(loadedBytesOfThisRequest). Resolves {status, json}.
+    function sendRequest(url, formData, { folderBatch = false, onProgress } = {}) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            currentUploadXhr = xhr;
+            xhr.open('POST', url, true);
+            if (folderBatch) xhr.setRequestHeader('X-Snail-Folder-Upload', '1');
+            xhr.upload.addEventListener('progress', (event) => { if (event.lengthComputable && onProgress) onProgress(event.loaded, event.total); });
+            xhr.onload = () => {
+                currentUploadXhr = null;
+                let json = null;
+                try { json = JSON.parse(xhr.responseText); } catch (e) { /* not JSON */ }
+                resolve({ status: xhr.status, json, text: xhr.responseText });
+            };
+            xhr.onerror = () => { currentUploadXhr = null; reject(new Error('network')); };
+            xhr.onabort = () => { currentUploadXhr = null; reject(new Error('aborted')); };
+            xhr.send(formData);
+        });
+    }
+
+    async function postJson(url, body) {
+        const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        let json = null;
+        try { json = await response.json(); } catch (e) { /* ignore */ }
+        return { ok: response.ok, json };
+    }
+
     if (uploadForm) {
-        uploadForm.addEventListener('submit', (e) => {
+        uploadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (!fileInput.files.length) return;
-            const formData = new FormData();
-            for (const file of fileInput.files) {
-                formData.append('file', file);
-            }
-            // Include current folder subpath so files upload to the active folder
+            if (uploadInProgress) return;
+            const sel = getSelection();
+            const totals = selectionTotals(sel);
+            if (!totals.count && !sel.folders.length) return;
+            if (!totals.count) { flash('[INFO] The selected folder has no files in it, so there is nothing to upload.', 'info'); return; }
+
             const subpathInput = document.getElementById('uploadSubpath');
-            if (subpathInput && subpathInput.value) {
-                formData.append('subpath', subpathInput.value);
-            }
+            const subpath = subpathInput && subpathInput.value ? subpathInput.value : '';
+
+            uploadInProgress = true;
+            uploadCancelled = false;
             uploadButton.disabled = true;
             uploadButton.textContent = 'Uploading...';
             if (progressContainer) progressContainer.style.display = 'block';
             if (progressBar) progressBar.style.width = '0%';
+            const speedEl = document.getElementById('uploadSpeed');
+            const progressBytesEl = document.getElementById('uploadProgressBytes');
+            const etaEl = document.getElementById('uploadEta');
+            const labelEl = progressContainer ? progressContainer.querySelector('.progress-bar-label') : null;
+            if (speedEl) speedEl.textContent = '0 KB/s';
+            if (progressBytesEl) progressBytesEl.textContent = '0 Bytes / ' + formatBytes(totals.bytes);
+            if (etaEl) etaEl.textContent = '--:--';
+            if (clearUploadBtn) { clearUploadBtn.textContent = 'Cancel'; clearUploadBtn.style.display = 'inline-flex'; }
 
-            // Change clear button to cancel
-            if (clearUploadBtn) {
-                clearUploadBtn.textContent = 'Cancel';
-                clearUploadBtn.style.display = 'inline-flex';
+            // One progress bar for everything: bytes finished in earlier requests + bytes of the current one
+            const startTime = Date.now();
+            let doneBytes = 0;
+            const showProgress = (loadedNow) => {
+                const loaded = doneBytes + loadedNow;
+                const percent = totals.bytes ? Math.min(100, (loaded / totals.bytes) * 100) : 100;
+                if (progressBar) progressBar.style.width = percent + '%';
+                const elapsed = (Date.now() - startTime) / 1000;
+                const speed = elapsed > 0 ? loaded / elapsed : 0;
+                if (speedEl) speedEl.textContent = speed > 0 ? formatSpeed(speed) : '0 KB/s';
+                if (progressBytesEl) progressBytesEl.textContent = `${formatBytes(loaded)} / ${formatBytes(totals.bytes)}`;
+                if (etaEl) etaEl.textContent = speed > 0 ? formatTime((totals.bytes - loaded) / speed) : '--:--';
+            };
+            // Progress events count multipart overhead too, so scale a request's events to the file bytes it carries
+            const progressFor = (batchBytes) => (loaded, total) => showProgress(total ? Math.min(batchBytes, batchBytes * (loaded / total)) : 0);
+
+            const problems = [];     // human-readable things that went wrong
+            let uploadedFiles = 0, failedFiles = 0;
+            const summary = [];
+            try {
+                // 1. loose files: a single request, exactly as before
+                if (sel.files.length) {
+                    if (labelEl) labelEl.textContent = 'Uploading...';
+                    const fd = new FormData();
+                    sel.files.forEach(f => fd.append('file', f));
+                    if (subpath) fd.append('subpath', subpath);
+                    const batchBytes = sel.files.reduce((n, f) => n + f.size, 0);
+                    const res = await sendRequest(uploadForm.action, fd, { onProgress: progressFor(batchBytes) });
+                    doneBytes += batchBytes;
+                    if (res.status >= 200 && res.status < 400) { uploadedFiles += sel.files.length; summary.push(sel.files.length === 1 ? 'file' : `${sel.files.length} files`); }
+                    else { failedFiles += sel.files.length; problems.push(`Files: server responded with status ${res.status}.`); }
+                }
+
+                // 2. each folder: create it, send its files in batches, report the result
+                for (const folder of sel.folders) {
+                    if (uploadCancelled) break;
+                    const folderBytes = folder.items.reduce((n, i) => n + i.file.size, 0);
+                    const folderStart = Date.now();
+                    if (labelEl) labelEl.textContent = `Uploading folder "${folder.name}"...`;
+                    const started = await postJson('/api/upload/folder/start', { path: subpath, name: folder.name, files: folder.items.length, bytes: folderBytes });
+                    if (!started.ok || !started.json || !started.json.success) {
+                        failedFiles += folder.items.length;
+                        problems.push(`"${folder.name}": ${(started.json && started.json.error) || 'could not create the folder on the server.'}`);
+                        doneBytes += folderBytes;
+                        continue;
+                    }
+                    const targetName = started.json.name, targetPath = started.json.path;
+                    let folderUploaded = 0, folderFailed = 0, folderDoneBytes = 0, outcome = 'done';
+                    for (const batch of makeBatches(folder.items)) {
+                        if (uploadCancelled) { outcome = 'cancelled'; break; }
+                        const batchBytes = batch.reduce((n, i) => n + i.file.size, 0);
+                        const fd = new FormData();
+                        fd.append('subpath', targetPath);
+                        for (const item of batch) {
+                            fd.append('file', item.file, item.file.name);
+                            // path inside the new folder: drop the leading folder name that every path starts with
+                            fd.append('relpaths', item.path.split('/').slice(1).join('/') || item.file.name);
+                        }
+                        try {
+                            const res = await sendRequest(uploadForm.action, fd, { folderBatch: true, onProgress: progressFor(batchBytes) });
+                            const errors = (res.json && res.json.messages && res.json.messages.error) || [];
+                            const okCount = (res.json && res.json.messages && res.json.messages.success) ? res.json.messages.success.length : 0;
+                            if (res.status >= 200 && res.status < 400) {
+                                folderUploaded += okCount;
+                                const lost = Math.max(batch.length - okCount - batch.filter(i => isJunkFile(i.file.name)).length, 0);
+                                folderFailed += lost;
+                                if (lost && errors.length) problems.push(`"${folder.name}": ${errors[0]}`);
+                            } else {
+                                folderFailed += batch.length;
+                                problems.push(`"${folder.name}": server responded with status ${res.status}.`);
+                                outcome = 'error';
+                            }
+                        } catch (err) {
+                            if (err.message === 'aborted') { outcome = 'cancelled'; folderFailed += batch.length; break; }
+                            folderFailed += batch.length; outcome = 'error';
+                            problems.push(`"${folder.name}": network error during upload.`);
+                            doneBytes += batchBytes; folderDoneBytes += batchBytes;
+                            break;
+                        }
+                        doneBytes += batchBytes; folderDoneBytes += batchBytes;
+                    }
+                    uploadedFiles += folderUploaded; failedFiles += folderFailed;
+                    if (outcome !== 'cancelled' && folderFailed) outcome = 'error';
+                    try {
+                        await postJson('/api/upload/folder/finish', { path: subpath, name: targetName, uploaded: folderUploaded, failed: folderFailed, bytes: folderDoneBytes, seconds: (Date.now() - folderStart) / 1000, outcome });
+                    } catch (err) { /* only the terminal report is lost */ }
+                    if (outcome === 'cancelled') { uploadCancelled = true; break; }
+                    if (folderFailed === 0) summary.push(`folder "${targetName}" (${folderUploaded} file${folderUploaded === 1 ? '' : 's'})`);
+                }
+            } catch (err) {
+                if (err.message === 'aborted') uploadCancelled = true;
+                else problems.push('A network error occurred during the upload.');
             }
 
-            const xhr = new XMLHttpRequest();
-            currentUploadXhr = xhr;
-            xhr.open('POST', uploadForm.action, true);
-            xhr.upload.addEventListener('progress', (event) => {
-                if (event.lengthComputable) {
-                    const percentComplete = (event.loaded / event.total) * 100;
-                    if (progressBar) progressBar.style.width = percentComplete + '%';
-                }
-            });
-            xhr.onload = () => {
-                currentUploadXhr = null;
-                if (progressContainer) progressContainer.style.display = 'none';
-                if (xhr.status >= 200 && xhr.status < 400) {
-                    // SUCCESS! The WebSocket 'file_list_updated' event will handle re-rendering the list
-                    flash('Upload successful!', 'success');
-                    clearFileSelection(); // Reset the upload form
-                } else {
-                    uploadButton.disabled = false;
-                    fileUploaded(); // Reset the button state
-                    flash(`[ERR] Upload failed. Server responded with status ${xhr.status}.`, 'error');
-                    console.error('Upload failed:', xhr.responseText);
-                }
-            };
-            xhr.onerror = () => {
-                currentUploadXhr = null;
-                flash('[ERR] A network error occurred during the upload.', 'error');
-                if (progressContainer) progressContainer.style.display = 'none';
+            currentUploadXhr = null;
+            uploadInProgress = false;
+            if (progressContainer) progressContainer.style.display = 'none';
+            if (labelEl) labelEl.textContent = 'Uploading...';
+            // The WebSocket 'file_list_updated' event re-renders the list for everyone
+            if (uploadCancelled) {
+                flash(uploadedFiles ? `[INFO] Upload cancelled after ${uploadedFiles} file${uploadedFiles === 1 ? '' : 's'} had been uploaded.` : '[INFO] Upload cancelled.', 'info');
+                clearFileSelection();
+            } else if (problems.length) {
+                flash(`[ERR] ${uploadedFiles ? `${uploadedFiles} uploaded, ${failedFiles} failed. ` : ''}${problems[0]}${problems.length > 1 ? ` (+${problems.length - 1} more, see the console)` : ''}`, 'error');
+                console.error('Upload problems:', problems);
                 uploadButton.disabled = false;
                 fileUploaded();
-            };
-            xhr.onabort = () => {
-                currentUploadXhr = null;
-                flash('[INFO] Upload cancelled.', 'info');
-                if (progressContainer) progressContainer.style.display = 'none';
-                uploadButton.disabled = false;
+            } else {
+                flash(summary.length === 1 && sel.folders.length === 1 && !sel.files.length ? `Uploaded ${summary[0]}.` : 'Upload successful!', 'success');
                 clearFileSelection();
-            };
-            xhr.send(formData);
+            }
         });
     }
 
     // Clear/Cancel upload button handler
     if (clearUploadBtn) {
         clearUploadBtn.addEventListener('click', () => {
-            if (currentUploadXhr) {
-                // Cancel ongoing upload
-                currentUploadXhr.abort();
+            if (uploadInProgress) {
+                // Cancel the upload: stop the request in flight; the loop sees the flag and stops sending more
+                uploadCancelled = true;
+                if (currentUploadXhr) currentUploadXhr.abort();
             } else {
-                // Clear file selection
                 clearFileSelection();
             }
         });
@@ -1065,97 +1524,546 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- SEARCH AND SORT BINDINGS ---
+    // --- DROPDOWN MENUS (sort / group / view) ---
+    // One shared open/close behaviour: opening a menu closes the others; outside click or Escape closes all.
+    const dirMenus = [];
+    function closeDirMenus(except) {
+        dirMenus.forEach(m => {
+            if (m.panel === except) return;
+            m.panel.classList.remove('visible');
+            m.btn.setAttribute('aria-expanded', 'false');
+        });
+    }
+    function registerDirMenu(btn, panel, onPick, pickSelector) {
+        if (!btn || !panel) return;
+        dirMenus.push({ btn, panel });
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const open = !panel.classList.contains('visible');
+            closeDirMenus(panel);
+            panel.classList.toggle('visible', open);
+            btn.setAttribute('aria-expanded', String(open));
+        });
+        panel.addEventListener('click', (e) => {
+            const option = e.target.closest(pickSelector);
+            if (!option) return;
+            onPick(option);
+            closeDirMenus();
+        });
+    }
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.custom-sort-dropdown')) closeDirMenus();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDirMenus(); });
+
+    // --- SORT / GROUP / FILTER STATE (remembered between visits) ---
     const sortToggleBtn = document.getElementById('sortToggleBtn');
     const sortOptionsPanel = document.getElementById('sortOptions');
-    let currentSortValue = 'date-desc'; // Default sort value
-    let currentGroupValue = 'folders-first'; // Default group value
-    let currentFilterValue = 'all'; // Default filter value: 'all' or 'favorites-only'
+    const groupToggleBtn = document.getElementById('groupToggleBtn');
+    const groupOptionsPanel = document.getElementById('groupOptions');
+    // ".v2": the defaults changed (group by Type, Details view), so choices saved under the old keys are ignored once
+    const SORT_PREFS_KEY = 'snailsynk.dirSortGroup.v2';
+    const VALID_SORTS = ['name-asc', 'name-desc', 'date-desc', 'date-asc', 'size-desc', 'size-asc'];
+    const VALID_GROUPS = ['folders-first', 'files-first', 'by-type', 'by-date'];
+    const DEFAULT_GROUP = 'by-type';
+    let currentSortValue = 'date-desc';      // default sort
+    let currentGroupValue = DEFAULT_GROUP;   // default group
+    let currentFilterValue = 'all';          // 'all' or 'favorites-only'
+    try {
+        const saved = JSON.parse(localStorage.getItem(SORT_PREFS_KEY) || '{}');
+        if (VALID_SORTS.includes(saved.sort)) currentSortValue = saved.sort;
+        if (VALID_GROUPS.includes(saved.group)) currentGroupValue = saved.group;
+        if (saved.filter === 'favorites-only') currentFilterValue = 'favorites-only';
+    } catch (e) { /* storage blocked or corrupt: use defaults */ }
 
-    if (sortToggleBtn && sortOptionsPanel) {
-        sortToggleBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            sortOptionsPanel.classList.toggle('visible');
+    function saveSortPrefs() {
+        try { localStorage.setItem(SORT_PREFS_KEY, JSON.stringify({ sort: currentSortValue, group: currentGroupValue, filter: currentFilterValue })); } catch (e) { /* ignore */ }
+    }
+
+    // Reflect the current state in the menus and in the sortable column headers
+    function syncSortMenus() {
+        if (sortOptionsPanel) {
+            sortOptionsPanel.querySelectorAll('.custom-sort-option[data-value]').forEach(o => o.classList.toggle('active', o.dataset.value === currentSortValue));
+            sortOptionsPanel.querySelectorAll('.custom-sort-option[data-filter]').forEach(o => o.classList.toggle('active', currentFilterValue === o.dataset.filter));
+        }
+        if (groupOptionsPanel) {
+            groupOptionsPanel.querySelectorAll('.custom-sort-option[data-group]').forEach(o => o.classList.toggle('active', o.dataset.group === currentGroupValue));
+        }
+        document.querySelectorAll('#downloadSelectedForm th[data-sort-key]').forEach(th => {
+            const key = th.dataset.sortKey;
+            th.dataset.sortDir = currentSortValue.startsWith(key + '-') ? currentSortValue.split('-')[1] : '';
         });
+        if (sortToggleBtn) sortToggleBtn.classList.toggle('has-filter', currentFilterValue !== 'all');
+        if (groupToggleBtn) groupToggleBtn.classList.toggle('has-filter', currentGroupValue !== DEFAULT_GROUP);
+    }
 
-        sortOptionsPanel.addEventListener('click', (e) => {
-            const option = e.target.closest('.custom-sort-option');
-            if (!option) return;
+    function setSort(value) { currentSortValue = value; syncSortMenus(); saveSortPrefs(); sortTableRowsCustom(); }
 
-            if (option.dataset.value) {
-                // Sort option clicked — update only sort active states
-                sortOptionsPanel.querySelectorAll('.custom-sort-option[data-value]').forEach(o => o.classList.remove('active'));
-                option.classList.add('active');
-                currentSortValue = option.dataset.value;
-            } else if (option.dataset.group) {
-                // Group option clicked — update only group active states
-                sortOptionsPanel.querySelectorAll('.custom-sort-option[data-group]').forEach(o => o.classList.remove('active'));
-                option.classList.add('active');
-                currentGroupValue = option.dataset.group;
-            } else if (option.dataset.filter) {
-                // Filter option clicked — toggle active state
-                const isActive = option.classList.toggle('active');
-                currentFilterValue = isActive ? option.dataset.filter : 'all';
-            }
-            sortOptionsPanel.classList.remove('visible');
-            // Trigger sort
-            sortTableRowsCustom();
-        });
+    registerDirMenu(sortToggleBtn, sortOptionsPanel, (option) => {
+        if (option.dataset.value) {
+            currentSortValue = option.dataset.value;
+        } else if (option.dataset.filter) {
+            currentFilterValue = currentFilterValue === option.dataset.filter ? 'all' : option.dataset.filter;
+        }
+        syncSortMenus(); saveSortPrefs(); sortTableRowsCustom();
+    }, '.custom-sort-option');
 
-        // Close dropdown on outside click
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('#customSortDropdown')) {
-                sortOptionsPanel.classList.remove('visible');
+    registerDirMenu(groupToggleBtn, groupOptionsPanel, (option) => {
+        currentGroupValue = option.dataset.group;
+        syncSortMenus(); saveSortPrefs(); sortTableRowsCustom();
+    }, '.custom-sort-option[data-group]');
+
+    // Clicking a column header (Filename / Size / Modified) sorts by it; click again to reverse.
+    const directoryForm = document.getElementById('downloadSelectedForm');
+    if (directoryForm) {
+        directoryForm.addEventListener('click', (e) => {
+            const th = e.target.closest('th[data-sort-key]');
+            if (!th) return;
+            const key = th.dataset.sortKey;
+            if (currentSortValue.startsWith(key + '-')) {
+                setSort(`${key}-${currentSortValue.endsWith('asc') ? 'desc' : 'asc'}`);
+            } else {
+                setSort(key === 'name' ? 'name-asc' : `${key}-desc`);   // sensible first direction per column
             }
         });
     }
 
+    // --- DOWNLOAD DIRECTORY VIEW STYLE (list / details / grid) ---
+    // Pure CSS does the work: we only set data-view on the container, so it applies equally to the
+    // server-rendered rows and to rows re-rendered by real-time updates. The choice is remembered.
+    const viewStyleBtn = document.getElementById('viewStyleBtn');
+    const viewStyleOptions = document.getElementById('viewStyleOptions');
+    const directoryContainer = document.querySelector('#downloadSelectedForm .download-container');
+    const DIRECTORY_VIEW_KEY = 'snailsynk.downloadView.v2';   // v2: Details became the default view
+    const DIRECTORY_VIEWS = ['list', 'details', 'grid'];
+    const DEFAULT_VIEW = 'details';
+
+    function applyDirectoryView(view, remember = true) {
+        if (!DIRECTORY_VIEWS.includes(view)) view = DEFAULT_VIEW;
+        if (directoryContainer) {
+            directoryContainer.dataset.view = view;
+            directoryContainer.classList.toggle('is-admin', !!document.getElementById('lockSelectedBtn'));
+        }
+        if (viewStyleOptions) {
+            viewStyleOptions.querySelectorAll('.view-style-option').forEach(o => {
+                const isActive = o.dataset.view === view;
+                o.classList.toggle('active', isActive);
+                if (isActive && viewStyleBtn) {
+                    // The button shows the icon of the current view
+                    viewStyleBtn.innerHTML = o.querySelector('svg').outerHTML;
+                    viewStyleBtn.title = `View style: ${o.textContent.trim()} (click to change)`;
+                }
+            });
+        }
+        if (remember) { try { localStorage.setItem(DIRECTORY_VIEW_KEY, view); } catch (e) { /* storage blocked: fine */ } }
+    }
+
+    if (viewStyleBtn && viewStyleOptions && directoryContainer) {
+        let savedView = DEFAULT_VIEW;
+        try { savedView = localStorage.getItem(DIRECTORY_VIEW_KEY) || DEFAULT_VIEW; } catch (e) { /* ignore */ }
+        applyDirectoryView(savedView, false);
+        registerDirMenu(viewStyleBtn, viewStyleOptions, (option) => applyDirectoryView(option.dataset.view), '.view-style-option');
+    }
+    syncSortMenus();
+
+    // --- RIGHT-CLICK MENU FOR THE DOWNLOAD DIRECTORY ---
+    // Only inside the file list. Each menu entry simply triggers the matching (now hidden) button of the row, so all
+    // the real logic (rename, move, lock, share, delete...) stays in one place. Shift + right-click still gives the
+    // browser's own menu, and on touch screens the "⋯" button on every row opens the same menu.
+    const dirContextMenu = document.createElement('div');
+    dirContextMenu.id = 'dirContextMenu';
+    dirContextMenu.className = 'dir-context-menu';
+    dirContextMenu.setAttribute('role', 'menu');
+    dirContextMenu.tabIndex = -1;
+    dirContextMenu.hidden = true;
+    document.body.appendChild(dirContextMenu);
+    let contextTargetRow = null;
+
+    function closeContextMenu() {
+        if (dirContextMenu.hidden) return;
+        dirContextMenu.hidden = true;
+        dirContextMenu.replaceChildren();
+        if (contextTargetRow) contextTargetRow.classList.remove('context-target');
+        contextTargetRow = null;
+    }
+
+    function ctxItem(label, svgHtml, onActivate, danger = false) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'dir-ctx-item' + (danger ? ' danger' : '');
+        button.setAttribute('role', 'menuitem');
+        if (svgHtml) button.insertAdjacentHTML('afterbegin', svgHtml);
+        const text = document.createElement('span');
+        text.textContent = label;
+        button.appendChild(text);
+        button.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeContextMenu();
+            onActivate();
+        });
+        return button;
+    }
+    function ctxHeading(text) {
+        const heading = document.createElement('div');
+        heading.className = 'dir-ctx-heading';
+        heading.textContent = text;
+        return heading;
+    }
+    function ctxSeparator() {
+        const separator = document.createElement('div');
+        separator.className = 'dir-ctx-separator';
+        separator.setAttribute('role', 'separator');
+        return separator;
+    }
+
+    // [selector of the row's own button, label, group, danger]. Only entries whose button exists in the row are shown
+    // (guests have fewer buttons than admins, folders fewer than files), and a separator is drawn between groups.
+    const ROW_MENU = [
+        { sel: '.folder-link', label: () => 'Open', group: 1 },
+        { sel: '.file-download-link', label: () => 'Download', group: 1 },
+        { sel: '.folder-download-btn', label: () => 'Download as ZIP', group: 1 },
+        { sel: '.file-open-img-btn', label: () => 'Open image in new tab', group: 1 },
+        { sel: '.file-copy-img-btn', label: () => 'Copy image', group: 1 },
+        { sel: '.file-share-btn', label: () => 'Create share link…', group: 2 },
+        { sel: '.file-favorite-btn', label: b => (b.classList.contains('active') ? 'Remove from favourites' : 'Add to favourites'), group: 2 },
+        { sel: '.rename-file-btn, .rename-folder-btn', label: () => 'Rename…', group: 3 },
+        { sel: '.file-move-btn', label: () => 'Move…', group: 3 },
+        { sel: '.file-lock-btn, .folder-lock-btn', label: b => (/^unlock/i.test(b.title) ? 'Unlock…' : 'Lock with password…'), group: 3 },
+        { sel: '.delete-file-btn, .delete-folder-btn', label: () => 'Delete', group: 4, danger: true },
+    ];
+
+    function rowMenuEntries(row) {
+        return ROW_MENU.map(entry => ({ entry, button: row.querySelector(entry.sel) })).filter(x => x.button);
+    }
+
+    function buildRowMenu(row) {
+        const nodes = [];
+        const nameLink = row.querySelector('td:nth-child(2) a');
+        nodes.push(ctxHeading(nameLink ? nameLink.textContent.trim() : 'Item'));
+        let lastGroup = null;
+        rowMenuEntries(row).forEach(({ entry, button }) => {
+            if (lastGroup !== null && entry.group !== lastGroup) nodes.push(ctxSeparator());
+            lastGroup = entry.group;
+            const icon = button.querySelector('svg');
+            nodes.push(ctxItem(entry.label(button), icon ? icon.outerHTML : '', () => button.click(), !!entry.danger));
+        });
+        return nodes;
+    }
+
+    // Several rows ticked and one of them right-clicked: offer the bulk actions of the bar under the list
+    function buildBatchMenu(count) {
+        const nodes = [ctxHeading(`${count} items selected`)];
+        const bulk = [
+            ['downloadSelectedBtn', 'Download as ZIP', false], ['shareSelectedBtn', 'Create share links…', false],
+            ['moveSelectedBtn', 'Move…', false], ['lockSelectedBtn', 'Lock with password…', false],
+            ['unlockSelectedBtn', 'Unlock…', false], ['deleteSelectedBtn', 'Delete', true],
+        ];
+        bulk.forEach(([id, label, danger]) => {
+            const button = document.getElementById(id);
+            if (!button || button.disabled) return;
+            if (danger) nodes.push(ctxSeparator());
+            const icon = button.querySelector('svg');
+            nodes.push(ctxItem(label, icon ? icon.outerHTML : '', () => button.click(), danger));
+        });
+        return nodes;
+    }
+
+    // Right-click on empty space (or a group heading) inside the list
+    function buildBlankMenu() {
+        const nodes = [ctxHeading('Download Directory')];
+        const folderIcon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>';
+        const checkIcon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>';
+        const refreshIcon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>';
+        const newFolder = document.getElementById('newFolderBtn');
+        if (newFolder) nodes.push(ctxItem('New folder…', folderIcon, () => newFolder.click()));
+        const selectAll = document.getElementById('selectAllFilesCheckbox');
+        if (selectAll && fileListBody && fileListBody.querySelector('tr[data-file-row]')) {
+            nodes.push(ctxItem(selectAll.checked ? 'Deselect all' : 'Select all', checkIcon, () => selectAll.click()));
+        }
+        nodes.push(ctxItem('Refresh', refreshIcon, () => navigateToFolder(currentPath)));
+        return nodes;
+    }
+
+    function showContextMenu(x, y, nodes, anchorRight = false) {
+        dirContextMenu.replaceChildren(...nodes);
+        dirContextMenu.style.left = '0px';
+        dirContextMenu.style.top = '0px';
+        dirContextMenu.hidden = false;
+        const width = dirContextMenu.offsetWidth, height = dirContextMenu.offsetHeight;
+        let left = anchorRight ? x - width : x;
+        let top = y;
+        // keep it on screen: flip to the other side of the pointer when there is no room
+        if (left + width > window.innerWidth - 8) left = Math.max(8, x - width);
+        if (left < 8) left = 8;
+        if (top + height > window.innerHeight - 8) top = Math.max(8, y - height);
+        if (top < 8) top = 8;
+        dirContextMenu.style.left = `${left}px`;
+        dirContextMenu.style.top = `${top}px`;
+        dirContextMenu.focus({ preventScroll: true });
+    }
+
+    function openContextMenuFor(row, x, y, anchorRight = false) {
+        closeContextMenu();
+        let nodes;
+        if (row) {
+            contextTargetRow = row;
+            row.classList.add('context-target');
+            const checked = document.querySelectorAll('#file-list-body .file-checkbox:checked');
+            const checkbox = row.querySelector('.file-checkbox');
+            nodes = (checkbox && checkbox.checked && checked.length > 1) ? buildBatchMenu(checked.length) : buildRowMenu(row);
+        } else {
+            nodes = buildBlankMenu();
+        }
+        if (nodes.length <= 1) return;   // nothing to offer: leave it to the browser
+        showContextMenu(x, y, nodes, anchorRight);
+    }
+
+    if (directoryContainer) {
+        directoryContainer.addEventListener('contextmenu', (e) => {
+            if (e.shiftKey) return;                      // Shift + right-click: the browser's normal menu
+            const row = e.target.closest('tr[data-file-row]');
+            if (row) {
+                const checked = document.querySelectorAll('#file-list-body .file-checkbox:checked').length;
+                const rowIsPartOfBatch = checked > 1 && row.querySelector('.file-checkbox') && row.querySelector('.file-checkbox').checked;
+                // a menu with a single entry is pointless: leave those rows to the browser's own menu
+                if (!rowIsPartOfBatch && rowMenuEntries(row).length < 2) { closeContextMenu(); return; }
+            }
+            e.preventDefault();
+            openContextMenuFor(row, e.clientX, e.clientY);
+        });
+    }
+    // Anything else closes the menu; a right-click outside the list shows the browser's own menu as usual
+    document.addEventListener('mousedown', (e) => { if (!dirContextMenu.hidden && !e.target.closest('#dirContextMenu')) closeContextMenu(); });
+    document.addEventListener('contextmenu', (e) => { if (!e.target.closest('#downloadSelectedForm .download-container') && !e.target.closest('#dirContextMenu')) closeContextMenu(); });
+    window.addEventListener('scroll', closeContextMenu, true);
+    window.addEventListener('resize', closeContextMenu);
+    window.addEventListener('blur', closeContextMenu);
+    document.addEventListener('keydown', (e) => {
+        if (dirContextMenu.hidden) return;
+        if (e.key === 'Escape') { closeContextMenu(); return; }
+        const items = Array.from(dirContextMenu.querySelectorAll('.dir-ctx-item'));
+        const index = items.indexOf(document.activeElement);
+        if (e.key === 'ArrowDown') { e.preventDefault(); items[(index + 1) % items.length].focus(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); items[(index - 1 + items.length) % items.length].focus(); }
+        else if (e.key === 'Home') { e.preventDefault(); items[0].focus(); }
+        else if (e.key === 'End') { e.preventDefault(); items[items.length - 1].focus(); }
+    });
+
+    // The "⋯" button at the end of each row opens the same menu (for touch screens and for discoverability)
+    function ensureMoreButtons() {
+        closeContextMenu();   // the rows this menu belonged to may just have been replaced
+        document.querySelectorAll('#file-list-body tr[data-file-row] td.index-file-actions').forEach(cell => {
+            if (cell.querySelector('.file-more-btn')) return;
+            const row = cell.closest('tr');
+            if (rowMenuEntries(row).length < 2) return;   // nothing beyond the one visible action
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn-icon file-more-btn';
+            button.title = 'More actions (or right-click the row)';
+            button.setAttribute('aria-haspopup', 'menu');
+            button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg>';
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const box = button.getBoundingClientRect();
+                openContextMenuFor(row, box.right, box.bottom + 4, true);
+            });
+            cell.appendChild(button);
+        });
+    }
+
+    // Extension → category mapping for "Group by Type"
+    const TYPE_CATEGORY_MAP = {
+        // Images
+        png: 'Images', jpg: 'Images', jpeg: 'Images', gif: 'Images', webp: 'Images',
+        svg: 'Images', bmp: 'Images', ico: 'Images', tiff: 'Images', tif: 'Images', heic: 'Images', avif: 'Images',
+        // Videos
+        mp4: 'Videos', mkv: 'Videos', avi: 'Videos', mov: 'Videos', wmv: 'Videos',
+        flv: 'Videos', webm: 'Videos', m4v: 'Videos', '3gp': 'Videos', ts: 'Videos',
+        // Audio
+        mp3: 'Audio', wav: 'Audio', flac: 'Audio', aac: 'Audio', ogg: 'Audio',
+        m4a: 'Audio', wma: 'Audio', opus: 'Audio', aiff: 'Audio',
+        // Documents
+        pdf: 'Documents', doc: 'Documents', docx: 'Documents', odt: 'Documents',
+        xls: 'Documents', xlsx: 'Documents', ods: 'Documents', ppt: 'Documents',
+        pptx: 'Documents', odp: 'Documents', txt: 'Documents', rtf: 'Documents', md: 'Documents',
+        // Archives
+        zip: 'Archives', rar: 'Archives', '7z': 'Archives', tar: 'Archives',
+        gz: 'Archives', bz2: 'Archives', xz: 'Archives', iso: 'Archives', cab: 'Archives',
+        // Code / Scripts
+        js: 'Code', ts: 'Code', py: 'Code', html: 'Code', css: 'Code', json: 'Code',
+        xml: 'Code', sh: 'Code', bat: 'Code', php: 'Code', rb: 'Code', java: 'Code',
+        c: 'Code', cpp: 'Code', cs: 'Code', go: 'Code', rs: 'Code', kt: 'Code',
+        swift: 'Code', yml: 'Code', yaml: 'Code', toml: 'Code', ini: 'Code', env: 'Code',
+        // Data
+        csv: 'Data', tsv: 'Data', sql: 'Data', db: 'Data', sqlite: 'Data',
+        // Executables / System
+        exe: 'Executables', msi: 'Executables', dmg: 'Executables', deb: 'Executables',
+        apk: 'Executables', appimage: 'Executables', bin: 'Executables',
+    };
+    // Ordered display of type group labels
+    const TYPE_CATEGORY_ORDER = ['Folders', 'Images', 'Videos', 'Audio', 'Documents', 'Archives', 'Code', 'Data', 'Executables', 'Other'];
+
+    function getTypeCategory(row) {
+        if (row.dataset.type === 'folder') return 'Folders';
+        // Derive the extension from the name itself: rows rebuilt by renderFileList() carry no data-ext
+        const name = row.dataset.sortName || '';
+        const ext = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1) : '';
+        return TYPE_CATEGORY_MAP[ext] || 'Other';
+    }
+
+    // Ordered display of date group labels
+    const DATE_CATEGORY_ORDER = ['Today', 'Yesterday', 'Previous 7 days', 'Previous 30 days', 'Older'];
+    function getDateCategory(row) {
+        const modified = new Date(parseFloat(row.dataset.sortDate) * 1000);
+        const now = new Date();
+        const dayStart = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const daysAgo = Math.round((dayStart(now) - dayStart(modified)) / 86400000);
+        if (daysAgo <= 0) return 'Today';
+        if (daysAgo === 1) return 'Yesterday';
+        if (daysAgo <= 7) return 'Previous 7 days';
+        if (daysAgo <= 30) return 'Previous 30 days';
+        return 'Older';
+    }
+
+    // --- Size / date text shown in the Details view (and under names in Grid view) ---
+    function formatFileSize(bytes) {
+        let n = Number(bytes) || 0;
+        if (n < 1024) return `${n} B`;
+        const units = ['KB', 'MB', 'GB', 'TB'];
+        let i = -1;
+        do { n /= 1024; i++; } while (n >= 1024 && i < units.length - 1);
+        return `${n >= 100 ? n.toFixed(0) : n.toFixed(1)} ${units[i]}`;
+    }
+    // Short form for this year ("Oct 11, 7:58 AM"); older files show the year instead of the time
+    const metaDateThisYear = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const metaDateOlder = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    const formatMetaDate = when => (when.getFullYear() === new Date().getFullYear() ? metaDateThisYear : metaDateOlder).format(when);
+    // Rows come from two places (the server template and renderFileList), so add the info cells here,
+    // once, from the data-* attributes both already carry. They stay hidden outside Details/Grid view.
+    function decorateRowMeta(row) {
+        const cell = row.querySelector('td:nth-child(2)');
+        if (!cell || cell.querySelector('.file-meta')) return;
+        const size = document.createElement('span');
+        size.className = 'file-meta file-meta-size';
+        size.textContent = formatFileSize(row.dataset.sortSize);
+        const date = document.createElement('span');
+        date.className = 'file-meta file-meta-date';
+        const mtime = parseFloat(row.dataset.sortDate);
+        if (Number.isFinite(mtime)) {
+            const when = new Date(mtime * 1000);
+            date.textContent = formatMetaDate(when);
+            date.title = when.toLocaleString();
+        }
+        cell.append(size, date);
+    }
+
+    // Which rows are visible = search text AND the favourites filter. Done in one place so that
+    // sorting, searching and filtering never undo each other.
+    function applyRowVisibility() {
+        if (!fileListBody) return;
+        const input = document.getElementById('searchInput');
+        const query = input ? input.value.toLowerCase().trim() : '';
+        const rows = fileListBody.querySelectorAll('tr[data-file-row]');
+        let visible = 0;
+        rows.forEach(row => {
+            const link = row.querySelector('td:nth-child(2) a');
+            const name = link ? link.textContent.toLowerCase() : '';
+            const hide = (query && !name.includes(query)) ||
+                (currentFilterValue === 'favorites-only' && row.dataset.favorite !== 'true');
+            row.classList.toggle('row-hidden', !!hide);
+            if (!hide) visible++;
+        });
+        const noResultsRow = document.getElementById('noResultsRow');
+        if (noResultsRow) noResultsRow.style.display = (rows.length > 0 && visible === 0) ? '' : 'none';
+        // Hide group headings that have nothing left under them
+        let heading = null, visibleUnder = 0;
+        const closeHeading = () => { if (heading) heading.classList.toggle('row-hidden', visibleUnder === 0); };
+        fileListBody.querySelectorAll(':scope > tr').forEach(tr => {
+            if (tr.classList.contains('type-group-separator')) { closeHeading(); heading = tr; visibleUnder = 0; }
+            else if (tr.hasAttribute('data-file-row') && !tr.classList.contains('row-hidden')) visibleUnder++;
+        });
+        closeHeading();
+        updateDownloadSelectedButtonState();
+    }
+
+    const nameCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });   // file2 before file10
+
     function sortTableRowsCustom() {
         if (!fileListBody) return;
+
+        // Remove any existing group heading rows from a previous call
+        fileListBody.querySelectorAll('.type-group-separator').forEach(el => el.remove());
+
         const rows = Array.from(fileListBody.querySelectorAll('tr[data-file-row]'));
-        // 1. Sort by selected sort criteria
+        rows.forEach(decorateRowMeta);
+
+        // 1. Sort by the selected criterion (ties fall back to the name so the order is stable)
+        const byName = (a, b) => nameCollator.compare(a.dataset.sortName, b.dataset.sortName);
+        const num = (row, key) => parseFloat(row.dataset[key]) || 0;
         rows.sort((a, b) => {
-            const nameA = a.dataset.sortName;
-            const nameB = b.dataset.sortName;
-            const dateA = parseFloat(a.dataset.sortDate);
-            const dateB = parseFloat(b.dataset.sortDate);
-            const sizeA = parseFloat(a.dataset.sortSize || 0);
-            const sizeB = parseFloat(b.dataset.sortSize || 0);
             switch (currentSortValue) {
-                case 'name-asc': return nameA.localeCompare(nameB);
-                case 'name-desc': return nameB.localeCompare(nameA);
-                case 'date-asc': return dateA - dateB;
-                case 'size-asc': return sizeA - sizeB;
-                case 'size-desc': return sizeB - sizeA;
-                case 'date-desc': default: return dateB - dateA;
+                case 'name-asc': return byName(a, b);
+                case 'name-desc': return byName(b, a);
+                case 'date-asc': return (num(a, 'sortDate') - num(b, 'sortDate')) || byName(a, b);
+                case 'size-asc': return (num(a, 'sortSize') - num(b, 'sortSize')) || byName(a, b);
+                case 'size-desc': return (num(b, 'sortSize') - num(a, 'sortSize')) || byName(a, b);
+                case 'date-desc': default: return (num(b, 'sortDate') - num(a, 'sortDate')) || byName(a, b);
             }
         });
-        // 2. Apply grouping if active
-        let finalRows;
+
+        // 2. Group. Favourites float to the top (of the list, or of each group heading)
+        const favFirst = list => [...list.filter(r => r.dataset.favorite === 'true'), ...list.filter(r => r.dataset.favorite !== 'true')];
+        const bucketed = (categoryOf, order) => {
+            const buckets = {};
+            order.forEach(cat => { buckets[cat] = []; });
+            rows.forEach(r => { (buckets[categoryOf(r)] = buckets[categoryOf(r)] || []).push(r); });
+            const out = [];
+            order.forEach(cat => {
+                if (buckets[cat].length > 0) {
+                    out.push({ isSeparator: true, label: cat, count: buckets[cat].length });
+                    favFirst(buckets[cat]).forEach(r => out.push(r));
+                }
+            });
+            return out;
+        };
+        let sorted;
+        const isFolder = r => r.dataset.type === 'folder';
         if (currentGroupValue === 'folders-first') {
-            const folders = rows.filter(r => r.dataset.type === 'folder');
-            const files = rows.filter(r => r.dataset.type !== 'folder');
-            finalRows = [...folders, ...files];
+            sorted = favFirst([...rows.filter(isFolder), ...rows.filter(r => !isFolder(r))]);
         } else if (currentGroupValue === 'files-first') {
-            const folders = rows.filter(r => r.dataset.type === 'folder');
-            const files = rows.filter(r => r.dataset.type !== 'folder');
-            finalRows = [...files, ...folders];
+            sorted = favFirst([...rows.filter(r => !isFolder(r)), ...rows.filter(isFolder)]);
+        } else if (currentGroupValue === 'by-type') {
+            sorted = bucketed(getTypeCategory, TYPE_CATEGORY_ORDER);
+        } else if (currentGroupValue === 'by-date') {
+            sorted = bucketed(getDateCategory, DATE_CATEGORY_ORDER);
         } else {
-            finalRows = rows;
+            sorted = favFirst(rows);
         }
-        // 3. Push favorites to top within their group
-        const favorites = finalRows.filter(r => r.dataset.favorite === 'true');
-        const nonFavorites = finalRows.filter(r => r.dataset.favorite !== 'true');
-        const sorted = [...favorites, ...nonFavorites];
-        // 4. Apply favorites filter
-        sorted.forEach(row => {
-            fileListBody.appendChild(row);
-            if (currentFilterValue === 'favorites-only' && row.dataset.favorite !== 'true') {
-                row.classList.add('row-hidden');
+
+        // 3. Render rows, inserting a heading row before each group
+        sorted.forEach(item => {
+            if (item.isSeparator) {
+                const sepRow = document.createElement('tr');
+                sepRow.className = 'type-group-separator';
+                const cell = document.createElement('td');
+                cell.colSpan = 3;
+                cell.className = 'type-group-label';
+                const label = document.createElement('span');
+                label.textContent = item.label;
+                const count = document.createElement('span');
+                count.className = 'type-group-count';
+                count.textContent = item.count;
+                cell.append(label, count);
+                sepRow.appendChild(cell);
+                fileListBody.appendChild(sepRow);
             } else {
-                row.classList.remove('row-hidden');
+                fileListBody.appendChild(item);
             }
         });
+        const noResultsRow = document.getElementById('noResultsRow');
+        if (noResultsRow) fileListBody.appendChild(noResultsRow);   // keep it last
+        applyRowVisibility();
     }
     const searchToggleBtn = document.getElementById('searchToggleBtn');
     const searchContainer = document.getElementById('searchContainer');
@@ -1165,22 +2073,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (searchToggleBtn && searchContainer && searchInput) {
         searchToggleBtn.addEventListener('click', () => { searchContainer.classList.toggle('visible'); if (searchContainer.classList.contains('visible')) { searchInput.focus(); } else { searchInput.blur(); } });
         searchInput.addEventListener('input', () => {
-            const fileTableRows = document.querySelectorAll('#downloadSelectedForm tbody tr:not(#noResultsRow)');
-            const noResultsRow = document.getElementById('noResultsRow');
-            const query = searchInput.value.toLowerCase().trim();
-            let visibleCount = 0;
-            clearSearchBtn.classList.toggle('visible', query.length > 0);
-            fileTableRows.forEach(row => {
-                const fileNameLink = row.querySelector('td:nth-child(2) a');
-                if (fileNameLink) {
-                    const fileName = fileNameLink.textContent.toLowerCase();
-                    const isVisible = fileName.includes(query);
-                    row.classList.toggle('row-hidden', !isVisible);
-                    if (isVisible) visibleCount++;
-                }
-            });
-            if (noResultsRow) { noResultsRow.style.display = visibleCount === 0 ? '' : 'none'; }
-            updateDownloadSelectedButtonState();
+            clearSearchBtn.classList.toggle('visible', searchInput.value.trim().length > 0);
+            applyRowVisibility();
         });
         clearSearchBtn.addEventListener('click', () => { searchInput.value = ''; searchInput.dispatchEvent(new Event('input', { bubbles: true, cancelable: true })); searchInput.focus(); });
     }
@@ -1302,7 +2196,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!data.success) throw new Error(data.error || 'Failed to load folders.');
                 const folderIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
                 folderPickerList.innerHTML = data.folders.map(f =>
-                    `<button class="folder-picker-item" data-path="${f.path}" title="${f.name || 'Root'}">${folderIcon} ${f.name || 'Root'}</button>`
+                    `<button class="folder-picker-item" data-path="${escapeHtmlText(f.path)}" title="${escapeHtmlText(f.name || 'Root')}">${folderIcon} ${escapeHtmlText(f.name || 'Root')}</button>`
                 ).join('');
 
                 // Bind click on each folder item
@@ -1429,7 +2323,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (viewBtnShared) viewBtnShared.addEventListener('click', () => switchView('shared'));
         if (viewBtnPinned) viewBtnPinned.addEventListener('click', () => switchView('pinned'));
         if (viewBtnAiChat) viewBtnAiChat.addEventListener('click', () => switchView('ai'));
-        if (fileInput) fileInput.addEventListener('change', fileUploaded);
 
         // --- QOL: Enter to Commit, Shift+Enter for Newline ---
         if (sharedTextArea && commitBtn) {
@@ -1471,6 +2364,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             const dataTransfer = new DataTransfer();
                             dataTransfer.items.add(newFile);
+                            droppedSelection = null; if (folderInput) folderInput.value = '';   // a pasted image replaces any folder selection
                             fileInput.files = dataTransfer.files;
 
                             fileUploaded();
@@ -1670,7 +2564,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     breaks: true,
                     gfm: true
                 });
-                return marked.parse(text);
+                return sanitizeHtml(marked.parse(text));
             }
             // Minimal fallback if marked.js fails to load
             return text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
@@ -1762,25 +2656,53 @@ document.addEventListener('DOMContentLoaded', () => {
             aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
         }
 
+        const AI_CHAT_BUG_MESSAGES = [
+            "🐛 Bugs are crawling through the code...",
+            "🐜 Ants marching through your query...",
+            "🐞 Beetles digging for answers...",
+            "🦗 Crickets chirping while I think...",
+            "🐝 Bees buzzing through the knowledge base...",
+            "🕷️ Spiders weaving a response web...",
+            "🐞 Ladybugs debugging your question...",
+            "🐜🐜🐜 Bug army assembling your answer...",
+            "🦋 Caterpillar evolving into a response...",
+            "🐛 Worms tunneling through databases...",
+            "🕷️ Charlotte is writing your response...",
+            "🐝 Honey, I'm cooking up a response!",
+            "🐞 Bug squad is on the case!",
+        ];
+
+        function getRandomAiChatBugMessage() {
+            return AI_CHAT_BUG_MESSAGES[Math.floor(Math.random() * AI_CHAT_BUG_MESSAGES.length)];
+        }
+
         function showAiChatLoading() {
             const loadingDiv = document.createElement('div');
             loadingDiv.className = 'ai-chat-loading';
             loadingDiv.id = 'aiChatLoading';
             loadingDiv.innerHTML = `
-                <div class="ai-chat-loading-dots">
-                    <div class="ai-chat-loading-dot"></div>
-                    <div class="ai-chat-loading-dot"></div>
-                    <div class="ai-chat-loading-dot"></div>
+                <div class="ai-chat-loading-bugs">
+                    <span class="ai-chat-loading-bug">🐛</span>
+                    <span class="ai-chat-loading-bug">🐜</span>
+                    <span class="ai-chat-loading-bug">🐞</span>
                 </div>
-                <span>Gemini is thinking...</span>
+                <span class="ai-chat-loading-text">${getRandomAiChatBugMessage()}</span>
             `;
             aiChatMessages.appendChild(loadingDiv);
             aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
+
+            // Rotate bug messages while loading
+            const interval = setInterval(() => {
+                const textEl = loadingDiv.querySelector('.ai-chat-loading-text');
+                if (textEl) textEl.textContent = getRandomAiChatBugMessage();
+            }, 3000);
+            loadingDiv._interval = interval;
         }
 
         function hideAiChatLoading() {
             const loadingDiv = document.getElementById('aiChatLoading');
             if (loadingDiv) {
+                if (loadingDiv._interval) clearInterval(loadingDiv._interval);
                 loadingDiv.remove();
             }
         }
@@ -1792,7 +2714,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Disable input while processing
             aiChatInput.disabled = true;
             aiChatSendBtn.disabled = true;
-            aiChatSendBtn.textContent = 'Sending...';
 
             // Render user message
             renderAiChatMessage(message, 'user');
@@ -1861,7 +2782,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Re-enable input
                 aiChatInput.disabled = false;
                 aiChatSendBtn.disabled = false;
-                aiChatSendBtn.textContent = 'Send';
                 aiChatInput.focus();
             }
         }
@@ -1898,11 +2818,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (aiChatMessages) {
                     aiChatMessages.innerHTML = `
                         <div class="ai-chat-empty">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                            </svg>
-                            <p>Start a conversation with Gemini AI</p>
+                            <div class="ai-chat-empty-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                </svg>
+                            </div>
+                            <p class="ai-chat-empty-title">Chat with <span class="ai-chat-gradient-text">Gemini AI</span></p>
+                            <p class="ai-chat-empty-subtitle">Ask anything — code, ideas, or questions.</p>
                         </div>
                     `;
                 }
@@ -2038,7 +2961,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const parsedHtml = parseMarkdownExtended(textContent);
 
                 // Show preview, hide textarea
-                markdownPreview.innerHTML = parsedHtml;
+                markdownPreview.innerHTML = sanitizeHtml(parsedHtml);
                 markdownPreview.classList.remove('view-hidden');
                 sharedTextArea.classList.add('preview-active');
 
@@ -2054,75 +2977,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Extended markdown parser for preview (more comprehensive than AI chat parser)
         function parseMarkdownExtended(text) {
-            if (!text || !text.trim()) {
-                return '<p style="color: var(--c-text-muted); font-style: italic;">Nothing to preview. Type some text to see the markdown rendered.</p>';
-            }
-
-            let html = text;
-
-            // Code blocks with language (must be done first)
-            html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-                return `<pre><code class="language-${lang || 'text'}">${escapeHtml(code.trim())}</code></pre>`;
-            });
-
-            // Inline code (avoid matching inside code blocks)
-            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-            // Headers
-            html = html.replace(/^###### (.*$)/gm, '<h6>$1</h6>');
-            html = html.replace(/^##### (.*$)/gm, '<h5>$1</h5>');
-            html = html.replace(/^#### (.*$)/gm, '<h4>$1</h4>');
-            html = html.replace(/^### (.*$)/gm, '<h3>$1</h3>');
-            html = html.replace(/^## (.*$)/gm, '<h2>$1</h2>');
-            html = html.replace(/^# (.*$)/gm, '<h1>$1</h1>');
-
-            // Bold and Italic (order matters)
-            html = html.replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>');
-            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-            html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>');
-            html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-            html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
-
-            // Strikethrough
-            html = html.replace(/~~([^~]+)~~/g, '<del>$1</del>');
-
-            // Blockquotes
-            html = html.replace(/^> (.*$)/gm, '<blockquote>$1</blockquote>');
-
-            // Horizontal rules
-            html = html.replace(/^---$/gm, '<hr>');
-            html = html.replace(/^\*\*\*$/gm, '<hr>');
-
-            // Unordered lists
-            html = html.replace(/^\* (.+)$/gm, '<li>$1</li>');
-            html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
-
-            // Ordered lists
-            html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-
-            // Wrap consecutive <li> in <ul>
-            html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
-
-            // Links [text](url)
-            html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-
-            // Images ![alt](url)
-            html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
-
-            // Paragraphs (wrap text not in tags)
-            html = html.split('\n\n').map(para => {
-                if (para.trim() && !para.match(/^<(h[1-6]|ul|ol|li|pre|blockquote|hr|div)/)) {
-                    return `<p>${para.replace(/\n/g, '<br>')}</p>`;
-                }
-                return para;
-            }).join('\n');
-
-            return html;
+            // The renderer is shared with the "open preview in a new tab" page: see markdown-preview.js
+            return window.SnailMarkdown ? window.SnailMarkdown.parse(text) : escapeHtml(text || '');
         }
 
         // Preview button event listener
         if (previewBtn) {
             previewBtn.addEventListener('click', togglePreviewMode);
+        }
+
+        // Open the preview in its own tab. The tab shows a snapshot of what is in the editor right now (even if it
+        // is not committed yet): it is handed over via sessionStorage, which a window.open() tab inherits, plus a
+        // short-lived localStorage copy as a fallback. Both are cleaned up once the tab has taken the text.
+        const previewNewTabBtn = document.getElementById('previewNewTabBtn');
+        if (previewNewTabBtn) {
+            previewNewTabBtn.addEventListener('click', () => {
+                const text = isEditorMode && easyMDEInstance ? easyMDEInstance.value() : sharedTextArea.value;
+                if (!text.trim()) { setStatus('[INFO] Nothing to preview yet. Type or paste some text first.', 'info'); return; }
+                const KEY = 'snailsynk.previewText';
+                try { sessionStorage.setItem(KEY, JSON.stringify({ text })); } catch (err) { /* blocked or full: the fallback below still works */ }
+                try {
+                    localStorage.setItem(KEY, JSON.stringify({ text, ts: Date.now() }));
+                    setTimeout(() => { try { localStorage.removeItem(KEY); } catch (err) { /* ignore */ } }, 20000);
+                } catch (err) { /* storage full: the tab will show the saved shared buffer instead */ }
+                window.open('/preview/text', '_blank');
+            });
         }
     }
 

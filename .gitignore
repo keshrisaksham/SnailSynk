@@ -26,3 +26,5 @@ Backbone.py
 
 #Old Directory
 Old_files/
+# Package manager bookkeeping
+node_modules/

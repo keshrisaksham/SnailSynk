@@ -2,8 +2,9 @@
 import json
 import logging
 from pathlib import Path
-from ipaddress import ip_address, AddressValueError
+from ipaddress import ip_address
 from .utils import log_history
+from .storage import atomic_write_json, load_json
 
 class BlocklistManager:
     """Manages the IP blocklist for the application."""
@@ -12,23 +13,19 @@ class BlocklistManager:
         self.blocked_ips = self._load()
 
     def _load(self):
-        if not self.path.exists(): return set()
-        try:
-            with open(self.path, 'r') as f: return set(json.load(f))
-        except (json.JSONDecodeError, IOError) as e:
-            logging.error(f"Could not load blocklist file at {self.path}: {e}")
-            return set()
+        return set(load_json(self.path, [], list, 'IP blocklist'))
 
     def _save(self):
         try:
-            with open(self.path, 'w') as f: json.dump(list(self.blocked_ips), f, indent=2)
-        except IOError as e: logging.error(f"Could not save blocklist file to {self.path}: {e}")
+            atomic_write_json(self.path, sorted(self.blocked_ips))
+        except OSError as e:
+            logging.error(f"Could not save blocklist file to {self.path}: {e}")
 
     def is_valid_ip(self, ip_string):
         try:
             ip_address(ip_string)
             return True
-        except AddressValueError: return False
+        except ValueError: return False
 
     def block_ip(self, ip_to_block):
         if not self.is_valid_ip(ip_to_block): return False, "Invalid IP address format."

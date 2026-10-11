@@ -15,15 +15,18 @@ body {
     -webkit-font-smoothing: antialiased;
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
     background-image: linear-gradient(to right, #e9e9e9 1px, transparent 1px),
         linear-gradient(to bottom, #e9e9e9 1px, transparent 1px);
     background-size: 20px 20px;
     transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* Page width: header/footer cap at 1560px; with their 2rem side padding the content is 1496px,
+   which is exactly the width of .main-content below so everything lines up. */
 .app-container {
-    max-width: 1200px;
+    max-width: 1560px;
     margin: 0 auto;
     padding: 0 2rem;
 }
@@ -63,6 +66,16 @@ body {
     margin: 0;
 }
 
+.logo img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+}
+
+.app-header {
+    flex-shrink: 0;
+}
+
 .header-actions {
     display: flex;
     align-items: center;
@@ -70,44 +83,58 @@ body {
 }
 
 main.app-container {
-    flex-grow: 1;
+    flex: 1;
+    min-height: 0;
+    width: 100%;   /* as a flex item it otherwise shrinks to its content instead of using the page width */
+    max-width: 100%;
     padding: 1.5rem 1rem 0.5rem 1rem;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .main-content {
     display: grid;
-    grid-template-columns: auto auto;
-    justify-content: center;
-    gap: 3rem;
+    /* minmax(0, 1fr), not 1fr: a plain 1fr column refuses to shrink below its widest content, so one wide
+       code line or URL in the text preview used to stretch this column and squash the other one */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 2rem;
     align-items: stretch;
-    flex-grow: 1;
+    flex: 1;
+    min-height: 0;
+    max-width: 1496px;
+    margin: 0 auto;
+    width: 100%;
 }
 
 .shared-text-section {
+    min-width: 0;
     grid-column: 1 / 2;
-    grid-row: 1 / span 2;
+    grid-row: 1 / 2;
     display: flex;
     flex-direction: column;
+    min-height: 0;
 }
 
 .right-column-wrapper {
+    min-width: 0;
     grid-column: 2 / 3;
-    grid-row: 1 / span 2;
+    grid-row: 1 / 2;
     display: flex;
     flex-direction: column;
-    gap: 3rem;
+    gap: 2rem;
+    min-height: 0;
 }
 
 .panel.upload-section {
-    max-height: 25rem;
+    flex-shrink: 0;
 }
 
 .right-column-wrapper>.panel {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
+    min-height: 0;
 }
 
 /* --- Panel System --- */
@@ -119,7 +146,7 @@ main.app-container {
     display: flex;
     flex-direction: column;
     transition: var(--transition);
-    width: 550px;
+    min-height: 0;
 }
 
 .panel-header {
@@ -149,13 +176,16 @@ main.app-container {
 
 .panel-body {
     padding: 0rem 2rem;
-    flex-grow: 1;
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .panel-body.download-section {
     padding: 0 2rem 0.3rem 2rem;
+    overflow: auto;
 }
 
 /* --- FIX: Specific rule for the Download Panel Header --- */
@@ -370,9 +400,10 @@ main.app-container {
 #pinned-messages-view {
     display: flex;
     flex-direction: column;
-    flex-grow: 1;
-    padding-bottom: 2rem;
+    flex: 1;
+    padding-bottom: 1rem;
     min-height: 0;
+    overflow: hidden;
 }
 
 .view-hidden {
@@ -391,9 +422,17 @@ main.app-container {
     margin: 0;
 }
 
+.shared-text-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
 .textarea-wrapper {
     position: relative;
-    flex-grow: 1;
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
 }
@@ -401,7 +440,7 @@ main.app-container {
 textarea#sharedTextArea {
     width: 100%;
     box-sizing: border-box;
-    min-height: 350px;
+    min-height: 0;
     padding: 1rem;
     border-radius: var(--radius);
     border: 1px solid var(--c-border);
@@ -412,7 +451,7 @@ textarea#sharedTextArea {
     color: var(--c-text-main);
     transition: var(--transition);
     resize: none;
-    flex-grow: 1;
+    flex: 1;
 }
 
 textarea#sharedTextArea::placeholder {
@@ -428,17 +467,21 @@ textarea#sharedTextArea:focus {
 .markdown-preview {
     width: 100%;
     box-sizing: border-box;
-    min-height: 350px;
+    min-height: 0;
     padding: 1rem;
     border-radius: var(--radius);
     border: 1px solid var(--c-border);
     background-color: var(--c-bg);
     color: var(--c-text-main);
     overflow-y: auto;
+    overflow-x: auto;           /* wide content scrolls inside the box instead of widening the page layout */
+    overflow-wrap: anywhere;    /* long unbroken words/URLs wrap */
+    max-width: 100%;
+    min-width: 0;
     font-family: var(--font-sans);
     font-size: 0.95rem;
     line-height: 1.7;
-    flex-grow: 1;
+    flex: 1;
 }
 
 .markdown-preview.view-hidden {
@@ -693,21 +736,57 @@ textarea#sharedTextArea:not(:placeholder-shown)~.text-meta {
     transition: width 0.2s ease-out;
 }
 
+.upload-stats {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    font-family: var(--font-mono);
+    color: var(--c-text-muted);
+    background-color: rgba(var(--c-surface-rgb), 0.5);
+    backdrop-filter: blur(4px);
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--c-border);
+    transition: var(--transition);
+}
+
+.upload-stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.upload-stat-item .stat-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--c-text-placeholder);
+    margin-bottom: 0.15rem;
+}
+
+.upload-stat-item .stat-value {
+    font-weight: 600;
+    color: var(--c-text-main);
+}
+
 /* --- Download Table --- */
 .download-container {
     margin-top: .5rem;
     padding-top: 0;
-    flex-grow: 1;
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    height: 235px;
 }
 
 .table-wrapper {
     overflow-y: auto;
     border: 1px solid var(--c-border);
     border-radius: var(--radius);
-    flex-grow: 1;
+    flex: 1;
+    min-height: 0;
     transition: border-color 0.3s ease;
 }
 
@@ -1463,7 +1542,7 @@ textarea#sharedTextArea:not(:placeholder-shown)~.buffer-scroll-btn.visible {
     gap: 0.3rem;
     color: var(--c-primary);
     cursor: pointer;
-    padding-top: 1rem;
+    padding-top: 0.5rem;
     border-radius: var(--r-sm);
     transition: background-color 0.15s ease, color 0.15s ease;
     user-select: none;
@@ -1543,6 +1622,58 @@ textarea#sharedTextArea:not(:placeholder-shown)~.buffer-scroll-btn.visible {
 .row-hidden {
     display: none !important;
 }
+
+/* --- Type Group Separator (Group by Type mode) --- */
+.type-group-separator {
+    pointer-events: none;
+    user-select: none;
+}
+
+.type-group-separator td {
+    padding: 0;
+}
+
+/* In the list view the heading is a genuine table cell so it spans the full row; Details/Grid/mobile turn
+   the row into a block and switch the cell to flex (see below). */
+tbody tr.type-group-separator {
+    height: auto;
+}
+
+tbody td.type-group-label {
+    text-align: left;   /* it is also :last-child, which the table rules right-align */
+}
+
+.type-group-label {
+    display: table-cell;
+    vertical-align: middle;
+    padding: 0.4rem 0.75rem 0.3rem !important;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--c-text-muted);
+    background: var(--c-bg);
+    border-top: 1px solid var(--c-border);
+    border-bottom: 1px solid var(--c-border);
+}
+
+.type-group-count {
+    margin-left: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.3rem;
+    height: 1.3rem;
+    padding: 0 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    border-radius: 999px;
+    background: var(--c-primary-muted);
+    color: var(--c-primary);
+    line-height: 1;
+}
+
+
 
 /* --- Per-Row Action Buttons (Download Directory) --- */
 .index-file-actions .btn-icon {
@@ -1745,11 +1876,477 @@ tr:hover .index-file-actions .file-download-link {
     /* Provides spacing between the sort dropdown and search icon */
 }
 
+/* --- Dropdown menu extras (sort / group / view) --- */
+.custom-sort-heading {
+    padding: 0.35rem 0.85rem 0.2rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--c-text-muted);
+    user-select: none;
+}
+
+/* small dot on the sort / group button when it differs from the default (a filter or grouping is active) */
+.custom-sort-dropdown>.btn-icon {
+    position: relative;
+}
+
+.custom-sort-dropdown>.btn-icon.has-filter::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--c-primary);
+}
+
+/* clickable column headers show the active sort direction */
+#downloadSelectedForm th[data-sort-key] {
+    cursor: pointer;
+    user-select: none;
+}
+
+#downloadSelectedForm th[data-sort-key]:hover {
+    color: var(--c-primary);
+}
+
+#downloadSelectedForm th[data-sort-dir="asc"]::after {
+    content: " \25B2";
+    font-size: 0.6rem;
+}
+
+#downloadSelectedForm th[data-sort-dir="desc"]::after {
+    content: " \25BC";
+    font-size: 0.6rem;
+}
+
+/* --- Download Directory view styles (data-view on .download-container: list | details | grid) ---
+   "list" is the default look. Desktop only - phones already get their own card list
+   (see mobile-responsive.css), so the view switcher is hidden there. */
+.view-style-option {
+    display: flex !important;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.view-style-option svg {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+}
+
+/* size / date info cells and their column headers exist in every row but only show in Details/Grid */
+.file-meta,
+.download-container th.col-meta {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    #viewStyleDropdown {
+        display: none;
+    }
+}
+
+/* phone browsers cannot pick a whole folder, so don't offer it there */
+@media (max-width: 768px), (pointer: coarse) {
+    #chooseFolderButton {
+        display: none;
+    }
+}
+
+@media (min-width: 769px) {
+
+    /* ---------- Details: a real table with Size and Modified columns ---------- */
+    .download-container[data-view="details"] table,
+    .download-container[data-view="details"] thead,
+    .download-container[data-view="details"] tbody {
+        display: block;
+    }
+
+    .download-container[data-view="details"] thead {
+        position: sticky;
+        top: 0;
+        z-index: 1;   /* must stay below #download-panel-header (z-index 2) or it covers the dropdown menus */
+    }
+
+    /* every row is its own grid with identical fixed columns, so the columns line up */
+    .download-container[data-view="details"] thead tr,
+    .download-container[data-view="details"] tbody tr {
+        display: grid;
+        grid-template-columns: 44px minmax(0, 1fr) 76px 132px 92px;
+        align-items: center;
+        height: auto;
+        min-height: 38px;
+    }
+
+    .download-container.is-admin[data-view="details"] thead tr,
+    .download-container.is-admin[data-view="details"] tbody tr {
+        grid-template-columns: 44px minmax(0, 1fr) 76px 132px 92px;
+    }
+
+    .download-container[data-view="details"] th,
+    .download-container[data-view="details"] td {
+        padding: 0.3rem 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    .download-container[data-view="details"] th:first-child,
+    .download-container[data-view="details"] td:first-child,
+    .download-container[data-view="details"] .folder-row td:first-child {
+        width: auto;
+        min-width: 0;
+        padding-left: 1rem;
+    }
+
+    .download-container[data-view="details"] th.col-meta {
+        display: block;
+    }
+
+    /* the name cell dissolves so its link and two info spans become grid cells of the row */
+    .download-container[data-view="details"] td:nth-child(2),
+    .download-container[data-view="details"] .folder-row td:nth-child(2) {
+        display: contents;
+    }
+
+    .download-container[data-view="details"] td:nth-child(2)>a {
+        padding: 0.3rem 0.5rem;
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .download-container[data-view="details"] .file-meta {
+        display: block;
+        padding: 0 0.5rem;
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        color: var(--c-text-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .download-container[data-view="details"] .file-meta-size {
+        text-align: right;
+    }
+
+    .download-container[data-view="details"] .folder-icon {
+        width: 1rem;
+        height: 1rem;
+    }
+
+    .download-container[data-view="details"] .index-file-actions {
+        padding: 0 0.25rem;
+        justify-content: flex-end;
+        flex-wrap: nowrap;
+    }
+
+    .download-container[data-view="details"] .index-file-actions .btn-icon,
+    .download-container[data-view="details"] .index-file-actions .file-download-link {
+        padding: 0.18rem;
+    }
+
+    .download-container[data-view="details"] .index-file-actions .btn-icon svg,
+    .download-container[data-view="details"] .index-file-actions .file-download-link svg {
+        width: 0.85rem;
+        height: 0.85rem;
+    }
+
+    /* ---------- Grid: one small card per file/folder ---------- */
+    .download-container[data-view="grid"] table,
+    .download-container[data-view="grid"] tbody {
+        display: block;
+    }
+
+    /* keep the select-all checkbox: the header becomes a slim bar */
+    .download-container[data-view="grid"] thead {
+        display: block;
+        position: sticky;
+        top: 0;
+        z-index: 1;   /* must stay below #download-panel-header (z-index 2) or it covers the dropdown menus */
+    }
+
+    .download-container[data-view="grid"] thead tr {
+        display: flex;
+        align-items: center;
+        height: auto;
+    }
+
+    .download-container[data-view="grid"] thead th {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+
+    .download-container[data-view="grid"] thead th:nth-child(2) {
+        flex: 1;
+    }
+
+    .download-container[data-view="grid"] thead th.index-actions {
+        display: none;
+    }
+
+    .download-container[data-view="grid"] tbody {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+        gap: 0.5rem;
+        padding: 0.6rem;
+    }
+
+    .download-container[data-view="grid"] tbody tr {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: relative;
+        height: auto;
+        min-height: 92px;
+        padding: 0.8rem 0.3rem 0.25rem;
+        border: 1px solid var(--c-border);
+        border-radius: var(--radius);
+        background-color: var(--c-surface);
+        text-align: center;
+    }
+
+    .download-container[data-view="grid"] tbody tr.favorite-row {
+        border-color: #f5a623;
+    }
+
+    .download-container[data-view="grid"] tbody tr:hover {
+        border-color: var(--c-primary);
+    }
+
+    .download-container[data-view="grid"] td,
+    .download-container[data-view="grid"] .folder-row td {
+        display: block;
+        width: 100%;
+        padding: 0.1rem 0.25rem;
+        text-align: center;
+        font-size: 0.74rem;
+    }
+
+    /* checkbox floats in the card's corner */
+    .download-container[data-view="grid"] td:first-child,
+    .download-container[data-view="grid"] .folder-row td:first-child {
+        position: absolute;
+        top: 0.3rem;
+        left: 0.3rem;
+        width: auto;
+        min-width: 0;
+        padding: 0;
+        z-index: 1;
+    }
+
+    .download-container[data-view="grid"] td:nth-child(2) {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        overflow-wrap: anywhere;
+        word-break: normal;
+        flex-shrink: 0;   /* the whole name must stay visible: the card grows to fit it */
+    }
+
+    .download-container[data-view="grid"] .folder-link,
+    .download-container[data-view="grid"] .file-link-preview {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.3rem;
+        max-width: 100%;
+        line-height: 1.25;
+    }
+
+    .download-container[data-view="grid"] .folder-icon {
+        width: 1.7rem;
+        height: 1.7rem;
+    }
+
+    /* files have no icon in list view; draw a small document icon above the name in grid view */
+    .download-container[data-view="grid"] .file-link-preview::before {
+        content: "";
+        display: block;
+        width: 1.7rem;
+        height: 1.7rem;
+        background-color: var(--c-text-muted);
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3C/svg%3E") center / contain no-repeat;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+
+    /* file size under the name; the modified date is only shown in Details */
+    .download-container[data-view="grid"] .file-meta-size {
+        display: block;
+        margin-top: 0.15rem;
+        font-family: var(--font-mono);
+        font-size: 0.66rem;
+        color: var(--c-text-muted);
+    }
+
+    .download-container[data-view="grid"] td.index-file-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 0;
+        margin-top: auto;
+    }
+
+    .download-container[data-view="grid"] .index-file-actions .btn-icon,
+    .download-container[data-view="grid"] .index-file-actions .file-download-link {
+        padding: 0.2rem;
+    }
+
+    .download-container[data-view="grid"] .index-file-actions .btn-icon svg,
+    .download-container[data-view="grid"] .index-file-actions .file-download-link svg {
+        width: 0.85rem;
+        height: 0.85rem;
+    }
+
+    /* ---------- messages, "no results" and group headings span the whole width in Details and Grid ---------- */
+    .download-container[data-view="grid"] tbody tr:has(> td[colspan]),
+    .download-container[data-view="grid"] tbody tr.type-group-separator,
+    .download-container[data-view="details"] tbody tr:has(> td[colspan]),
+    .download-container[data-view="details"] tbody tr.type-group-separator {
+        grid-column: 1 / -1;
+        display: block;
+        min-height: 0;
+        padding: 0;
+        border: none;
+        border-radius: 0;
+        background: none;
+    }
+
+    .download-container[data-view="grid"] tbody tr:has(> td[colspan]) td,
+    .download-container[data-view="grid"] tbody tr.type-group-separator td,
+    .download-container[data-view="details"] tbody tr:has(> td[colspan]) td,
+    .download-container[data-view="details"] tbody tr.type-group-separator td {
+        position: static;   /* the first cell of a normal row is the card's corner checkbox; these are not */
+        width: auto;
+        min-width: 0;
+        text-align: left;
+    }
+
+    .download-container[data-view="grid"] tbody tr.type-group-separator td.type-group-label,
+    .download-container[data-view="details"] tbody tr.type-group-separator td.type-group-label {
+        display: flex;
+        align-items: center;
+        padding: 0.4rem 0.75rem 0.3rem !important;
+    }
+
+    .download-container[data-view="grid"] tbody tr.type-group-separator td.type-group-label {
+        border-radius: 6px;
+    }
+}
+
+/* --- Right-click menu for the download directory (see index.js) --- */
+.dir-context-menu {
+    position: fixed;
+    z-index: 3000;
+    min-width: 210px;
+    max-width: 290px;
+    padding: 0.35rem;
+    background-color: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    outline: none;
+    animation: sortDropdownFadeIn 0.12s ease;
+}
+
+.dir-context-menu[hidden] {
+    display: none;
+}
+
+.dir-ctx-heading {
+    padding: 0.35rem 0.75rem 0.3rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--c-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    user-select: none;
+}
+
+.dir-ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--c-text-main);
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: calc(var(--radius) - 2px);
+    cursor: pointer;
+}
+
+.dir-ctx-item svg {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    color: var(--c-text-muted);
+}
+
+.dir-ctx-item:hover,
+.dir-ctx-item:focus-visible {
+    background-color: var(--c-bg);
+    outline: none;
+}
+
+.dir-ctx-item.danger,
+.dir-ctx-item.danger svg {
+    color: var(--c-error-text, #dc2626);
+}
+
+.dir-ctx-separator {
+    height: 1px;
+    margin: 0.3rem 0.25rem;
+    background-color: var(--c-border);
+}
+
+/* the row the menu belongs to */
+tr.context-target {
+    outline: 2px solid var(--c-primary);
+    outline-offset: -2px;
+    background-color: var(--c-primary-muted);
+}
+
+/* locked files carry a small padlock so they are recognisable without the (now hidden) lock button */
+.file-link-preview[data-locked="true"]::after {
+    content: " \1F512";
+    font-size: 0.8em;
+}
+
+/* Desktop: the per-row icons are replaced by the right-click menu. What stays visible: Download, a favourited
+   star (it is a status), and the "..." button that opens the same menu. The hidden buttons are still in the page:
+   the menu triggers them. (Phones have their own rules in mobile-responsive.css.) */
+@media (min-width: 769px) {
+    .download-container .index-file-actions>:not(.file-download-link):not(.file-more-btn):not(.file-favorite-btn.active) {
+        display: none !important;
+    }
+}
+
+/* touch screens have no hover, so the "..." button must always be visible there */
+@media (hover: none) {
+    .index-file-actions .file-more-btn {
+        opacity: 1;
+    }
+}
+
 /* Old #sortFilesDropdown styles removed — replaced by .custom-sort-dropdown above */
 
-/* --- AI Chat Interface --- */
+/* --- AI Chat Interface (Index Page — BugByte-style) --- */
 #ai-chat-view {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
 }
 
 .ai-chat-header {
@@ -1780,9 +2377,11 @@ tr:hover .index-file-actions .file-download-link {
 .ai-chat-container {
     display: flex;
     flex-direction: column;
-    height: 665px;
+    flex: 1;
+    min-height: 0;
 }
 
+/* ─── Messages Area ─── */
 .ai-chat-messages {
     flex: 1;
     overflow-y: auto;
@@ -1790,10 +2389,10 @@ tr:hover .index-file-actions .file-download-link {
     padding: 1rem 0;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
-    /* Auto-hiding scrollbar */
+    gap: 1.25rem;
     scrollbar-width: thin;
     scrollbar-color: transparent transparent;
+    scroll-behavior: smooth;
 }
 
 .ai-chat-messages:hover,
@@ -1819,19 +2418,90 @@ tr:hover .index-file-actions .file-download-link {
     background: transparent;
 }
 
+/* ─── Empty State ─── */
+.ai-chat-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-grow: 1;
+    text-align: center;
+    padding: 2rem;
+    animation: aiChatFadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes aiChatFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.ai-chat-empty-icon {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    color: var(--c-primary);
+    margin-bottom: 1.25rem;
+    animation: aiChatIconFloat 3s ease-in-out infinite;
+}
+
+.ai-chat-empty-icon svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--c-primary) 25%, transparent));
+}
+
+@keyframes aiChatIconFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+
+.ai-chat-empty-title {
+    font-size: 1.35rem;
+    font-weight: 700;
+    margin: 0 0 0.35rem;
+    color: var(--c-text-main);
+    letter-spacing: -0.02em;
+}
+
+.ai-chat-gradient-text {
+    background: linear-gradient(135deg, var(--c-primary), color-mix(in srgb, var(--c-primary) 60%, #ff6b6b), var(--c-primary));
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: aiChatGradientShift 4s ease-in-out infinite;
+}
+
+@keyframes aiChatGradientShift {
+    0%, 100% { background-position: 0% center; }
+    50% { background-position: 100% center; }
+}
+
+.ai-chat-empty-subtitle {
+    font-size: 0.88rem;
+    color: var(--c-text-muted);
+    margin: 0;
+}
+
+/* ─── Message Bubbles ─── */
 .ai-chat-message {
     display: flex;
     flex-direction: column;
     max-width: 85%;
-    animation: messageSlideIn 0.3s ease-out;
+    animation: aiChatMsgSlideIn 0.3s ease-out;
 }
 
-@keyframes messageSlideIn {
+@keyframes aiChatMsgSlideIn {
     from {
         opacity: 0;
-        transform: translateY(10px);
+        transform: translateY(12px);
     }
-
     to {
         opacity: 1;
         transform: translateY(0);
@@ -1850,17 +2520,29 @@ tr:hover .index-file-actions .file-download-link {
     padding: 0.875rem 1.125rem;
     border-radius: 1rem;
     font-size: 0.9rem;
-    line-height: 1.5;
+    line-height: 1.6;
     word-wrap: break-word;
-    word-break: break-word;
     overflow-wrap: break-word;
-    white-space: normal;
     max-width: 100%;
     box-sizing: border-box;
+}
+
+.ai-chat-message.user .ai-chat-bubble {
+    background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-accent) 100%);
+    color: var(--c-primary-text);
+    border-bottom-right-radius: 0.25rem;
+    white-space: pre-wrap;
+}
+
+.ai-chat-message.ai .ai-chat-bubble {
+    background: var(--c-surface);
+    color: var(--c-text-main);
+    border: 1px solid var(--c-border);
+    border-bottom-left-radius: 0.25rem;
     overflow-x: auto;
 }
 
-/* Markdown content wrapper for AI responses */
+/* ─── Markdown content in AI bubbles ─── */
 .ai-chat-bubble .markdown-content {
     overflow-x: auto;
     max-width: 100%;
@@ -1872,6 +2554,64 @@ tr:hover .index-file-actions .file-download-link {
 
 .ai-chat-bubble .markdown-content>*:last-child {
     margin-bottom: 0;
+}
+
+.ai-chat-bubble .markdown-content p {
+    margin: 0.4rem 0;
+}
+
+.ai-chat-bubble .markdown-content h1,
+.ai-chat-bubble .markdown-content h2,
+.ai-chat-bubble .markdown-content h3,
+.ai-chat-bubble .markdown-content h4 {
+    margin: 0.8rem 0 0.4rem;
+    font-weight: 600;
+}
+
+.ai-chat-bubble .markdown-content h1 { font-size: 1.25rem; }
+.ai-chat-bubble .markdown-content h2 { font-size: 1.1rem; }
+.ai-chat-bubble .markdown-content h3 { font-size: 1rem; }
+.ai-chat-bubble .markdown-content h4 { font-size: 0.92rem; }
+
+.ai-chat-bubble .markdown-content ul,
+.ai-chat-bubble .markdown-content ol {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+}
+
+.ai-chat-bubble .markdown-content li {
+    margin: 0.2rem 0;
+}
+
+.ai-chat-bubble .markdown-content strong {
+    font-weight: 600;
+}
+
+.ai-chat-bubble .markdown-content em {
+    font-style: italic;
+}
+
+.ai-chat-bubble .markdown-content blockquote {
+    border-left: 3px solid var(--c-primary);
+    margin: 0.5rem 0;
+    padding: 0.4rem 0.8rem;
+    background: color-mix(in srgb, var(--c-primary) 4%, transparent);
+    border-radius: 0 6px 6px 0;
+}
+
+.ai-chat-bubble .markdown-content a {
+    color: var(--c-primary);
+    text-decoration: none;
+}
+
+.ai-chat-bubble .markdown-content a:hover {
+    text-decoration: underline;
+}
+
+.ai-chat-bubble .markdown-content hr {
+    border: none;
+    border-top: 1px solid var(--c-border);
+    margin: 0.75rem 0;
 }
 
 .ai-chat-bubble .markdown-content table {
@@ -1888,68 +2628,59 @@ tr:hover .index-file-actions .file-download-link {
     border: 1px solid var(--c-border);
     padding: 0.4rem 0.6rem;
     text-align: left;
-    white-space: nowrap;
 }
 
 .ai-chat-bubble .markdown-content th {
-    background-color: rgba(0, 0, 0, 0.04);
+    background: rgba(0, 0, 0, 0.03);
     font-weight: 600;
 }
 
-.ai-chat-bubble .markdown-content p {
-    margin: 0.4rem 0;
+html.dark .ai-chat-bubble .markdown-content th {
+    background: rgba(255, 255, 255, 0.05);
 }
 
-.ai-chat-message.user .ai-chat-bubble {
-    background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-accent) 100%);
-    color: var(--c-primary-text);
-    border-bottom-right-radius: 0.25rem;
-    white-space: pre-wrap;
-}
-
-.ai-chat-message.ai .ai-chat-bubble {
-    background-color: var(--c-bg);
-    color: var(--c-text-main);
-    border: 1px solid var(--c-border);
-    border-bottom-left-radius: 0.25rem;
-}
-
-/* Markdown styling in AI chat bubbles */
-.ai-chat-bubble code {
-    background-color: rgba(0, 0, 0, 0.05);
+/* Inline code */
+.ai-chat-bubble code:not(pre code) {
+    background: rgba(0, 0, 0, 0.06);
     padding: 0.15rem 0.4rem;
-    border-radius: 3px;
+    border-radius: 4px;
     font-family: var(--font-mono);
-    font-size: 0.85em;
+    font-size: 0.84em;
 }
 
+html.dark .ai-chat-bubble code:not(pre code) {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Code blocks */
 .ai-chat-bubble pre {
-    background-color: rgba(0, 0, 0, 0.05);
-    padding: 0.75rem;
-    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.05);
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
     overflow-x: auto;
     margin: 0.5rem 0;
     max-width: 100%;
     box-sizing: border-box;
+    border: 1px solid var(--c-border);
+}
+
+html.dark .ai-chat-bubble pre {
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .ai-chat-bubble pre code {
-    background-color: transparent;
-    padding: 0;
-    font-size: 0.85rem;
-    line-height: 1.5;
+    background: transparent !important;
+    padding: 0 !important;
+    font-family: var(--font-mono);
+    font-size: 0.84rem;
+    line-height: 1.6;
     white-space: pre;
     word-break: normal;
     overflow-wrap: normal;
 }
 
-.ai-chat-bubble strong {
-    font-weight: 600;
-}
-
-.ai-chat-bubble em {
-    font-style: italic;
-}
+.ai-chat-bubble strong { font-weight: 600; }
+.ai-chat-bubble em { font-style: italic; }
 
 .ai-chat-bubble h1,
 .ai-chat-bubble h2,
@@ -1958,17 +2689,9 @@ tr:hover .index-file-actions .file-download-link {
     font-weight: 600;
 }
 
-.ai-chat-bubble h1 {
-    font-size: 1.25rem;
-}
-
-.ai-chat-bubble h2 {
-    font-size: 1.1rem;
-}
-
-.ai-chat-bubble h3 {
-    font-size: 1rem;
-}
+.ai-chat-bubble h1 { font-size: 1.25rem; }
+.ai-chat-bubble h2 { font-size: 1.1rem; }
+.ai-chat-bubble h3 { font-size: 1rem; }
 
 .ai-chat-bubble ul,
 .ai-chat-bubble ol {
@@ -1976,9 +2699,7 @@ tr:hover .index-file-actions .file-download-link {
     padding-left: 1.5rem;
 }
 
-.ai-chat-bubble li {
-    margin: 0.25rem 0;
-}
+.ai-chat-bubble li { margin: 0.25rem 0; }
 
 .ai-chat-bubble br {
     display: block;
@@ -1986,11 +2707,11 @@ tr:hover .index-file-actions .file-download-link {
     margin-top: 0.5rem;
 }
 
-
+/* ─── Timestamp ─── */
 .ai-chat-timestamp {
     font-size: 0.7rem;
     color: var(--c-text-muted);
-    margin-top: 0.25rem;
+    margin-top: 2px;
     font-family: var(--font-mono);
 }
 
@@ -1998,13 +2719,13 @@ tr:hover .index-file-actions .file-download-link {
     text-align: right;
 }
 
-/* Action buttons for chat messages */
+/* ─── Message Actions ─── */
 .ai-chat-actions {
     display: flex;
-    gap: 0.25rem;
+    gap: 4px;
+    margin-top: 4px;
     opacity: 0;
     transition: opacity 0.15s ease;
-    margin-top: 0.25rem;
 }
 
 .ai-chat-message:hover .ai-chat-actions {
@@ -2021,11 +2742,11 @@ tr:hover .index-file-actions .file-download-link {
     justify-content: center;
     width: 26px;
     height: 26px;
-    background: var(--c-background);
     border: 1px solid var(--c-border);
     border-radius: 6px;
+    background: var(--c-surface);
+    color: var(--c-text-muted);
     cursor: pointer;
-    color: var(--c-text-secondary);
     transition: all 0.15s ease;
 }
 
@@ -2040,121 +2761,142 @@ tr:hover .index-file-actions .file-download-link {
     height: 14px;
 }
 
+/* ─── Input Area (BugByte-style pill wrapper) ─── */
 .ai-chat-input-area {
     flex-shrink: 0;
-    padding-top: 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
+    padding-top: 0.75rem;
 }
 
 .ai-chat-input-wrapper {
-    position: relative;
     display: flex;
     align-items: flex-end;
     gap: 0.5rem;
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: 14px;
+    padding: 0.5rem 0.5rem 0.5rem 1rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ai-chat-input-wrapper:focus-within {
+    border-color: var(--c-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-primary) 8%, transparent);
 }
 
 #aiChatInput {
-    flex-grow: 1;
-    min-height: 44px;
+    flex: 1;
+    min-height: 24px;
     max-height: 80px;
-    padding: 0.75rem 1rem;
-    border: 1px solid var(--c-border);
-    border-radius: var(--radius);
-    background-color: var(--c-bg);
+    padding: 0.4rem 0;
+    border: none;
+    background: transparent;
     color: var(--c-text-main);
     font-family: var(--font-sans);
-    font-size: 0.9rem;
+    font-size: 0.92rem;
+    line-height: 1.5;
     resize: none;
+    outline: none;
     overflow-y: auto;
-    transition: height 0.15s ease, border-color 0.3s ease;
 }
 
 #aiChatInput::placeholder {
     color: var(--c-text-placeholder);
 }
 
-#aiChatInput:focus {
-    outline: none;
-    border-color: var(--c-primary);
+.ai-chat-send-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 10px;
+    background: var(--c-primary);
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
 }
 
-#aiChatSendBtn {
-    padding: 0.75rem 1.5rem;
-    min-width: 80px;
+.ai-chat-send-btn:hover:not(:disabled) {
+    filter: brightness(1.1);
+    transform: scale(1.05);
 }
 
+.ai-chat-send-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.ai-chat-send-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.ai-chat-disclaimer {
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--c-text-muted);
+    margin: 0.5rem 0 0;
+    opacity: 0.7;
+}
+
+/* ─── Loading Animation (Bug-themed) ─── */
 .ai-chat-loading {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.75rem;
     padding: 0.875rem 1.125rem;
-    background-color: var(--c-bg);
+    background: var(--c-surface);
     border: 1px solid var(--c-border);
     border-radius: 1rem;
     border-bottom-left-radius: 0.25rem;
     max-width: 85%;
     align-self: flex-start;
+    animation: aiChatMsgSlideIn 0.3s ease-out;
 }
 
-.ai-chat-loading-dots {
+.ai-chat-loading-bugs {
     display: flex;
-    gap: 0.25rem;
+    gap: 3px;
+    font-size: 1rem;
+    animation: aiChatBugsWalk 2s linear infinite;
+    white-space: nowrap;
 }
 
-.ai-chat-loading-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background-color: var(--c-text-muted);
-    animation: loadingDot 1.4s infinite ease-in-out both;
+@keyframes aiChatBugsWalk {
+    0% { transform: translateX(-3px); }
+    25% { transform: translateX(3px) rotate(2deg); }
+    50% { transform: translateX(-2px) rotate(-1deg); }
+    75% { transform: translateX(4px) rotate(1deg); }
+    100% { transform: translateX(-3px); }
 }
 
-.ai-chat-loading-dot:nth-child(1) {
-    animation-delay: -0.32s;
+.ai-chat-loading-bug {
+    display: inline-block;
+    animation: aiChatBugWiggle 0.6s ease-in-out infinite;
 }
 
-.ai-chat-loading-dot:nth-child(2) {
-    animation-delay: -0.16s;
+.ai-chat-loading-bug:nth-child(1) { animation-delay: 0s; }
+.ai-chat-loading-bug:nth-child(2) { animation-delay: 0.15s; }
+.ai-chat-loading-bug:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes aiChatBugWiggle {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    25% { transform: translateY(-3px) rotate(-10deg); }
+    75% { transform: translateY(2px) rotate(8deg); }
 }
 
-@keyframes loadingDot {
-
-    0%,
-    80%,
-    100% {
-        opacity: 0.3;
-        transform: scale(0.8);
-    }
-
-    40% {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
-
-.ai-chat-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    flex-grow: 1;
+.ai-chat-loading-text {
     color: var(--c-text-muted);
-    text-align: center;
-    padding: 2rem;
+    font-size: 0.85rem;
+    font-style: italic;
+    animation: aiChatLoadingPulse 2s ease-in-out infinite;
 }
 
-.ai-chat-empty svg {
-    width: 64px;
-    height: 64px;
-    margin-bottom: 1rem;
-    opacity: 0.5;
-}
-
-.ai-chat-empty p {
-    margin: 0;
-    font-size: 0.9rem;
+@keyframes aiChatLoadingPulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
 }
 
 /* ===== SHARED SNAIL DIALOG MODALS ===== */
@@ -2332,6 +3074,7 @@ html.dark .snail-modal {
 }
 
 .foot {
+    flex-shrink: 0;
     margin-top: 0rem !important;
     margin-bottom: 0rem !important;
     padding-top: 0rem !important;

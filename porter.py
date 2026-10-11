@@ -7,7 +7,7 @@ connects, the first byte is inspected:
   - 0x16 (TLS ClientHello) → wrapped in SSL, handled normally by Flask
   - Anything else (plain HTTP) → 301 redirect to the HTTPS equivalent
 
-Works with both **eventlet** and **werkzeug** async modes.
+Works with both **gevent** and **eventlet** async modes.
 
 Usage:
     from porter import Porter
@@ -40,17 +40,76 @@ class Porter:
     # Public API
     # ------------------------------------------------------------------
     def activate(self):
-        """Monkey-patch ``eventlet.wrap_ssl`` (if eventlet is in use) or
-        ``ssl.SSLContext.wrap_socket`` so that plain HTTP connections on
+        """Monkey-patch the SSL wrapping so that plain HTTP connections on
         the HTTPS port are automatically redirected.
 
+        Supports both gevent and eventlet async modes.
         Must be called **before** ``socketio.run()``.
         """
+        # Try gevent first (since it's in requirements.txt)
+        try:
+            import gevent
+            self._patch_gevent()
+            return
+        except ImportError:
+            pass
+
+        # Fall back to eventlet
         try:
             import eventlet
             self._patch_eventlet(eventlet)
+            return
         except ImportError:
-            self._patch_stdlib_ssl()
+            pass
+
+        # Fallback: stdlib ssl (werkzeug threading mode)
+        self._patch_stdlib_ssl()
+
+    # ------------------------------------------------------------------
+    # Gevent path
+    # ------------------------------------------------------------------
+    def _patch_gevent(self):
+        """Patch gevent's StreamServer to use a dual-protocol accept."""
+        from gevent import pywsgi
+        from gevent import ssl as gevent_ssl
+
+        porter = self
+
+        _original_init = pywsgi.WSGIServer.__init__
+
+        def patched_init(server_self, *args, **kwargs):
+            _original_init(server_self, *args, **kwargs)
+            # Wrap the server's socket handler after init
+            if hasattr(server_self, 'wrap_socket_and_handle'):
+                original_wrap = server_self.wrap_socket_and_handle
+
+                def dual_protocol_handler(client_socket, address):
+                    try:
+                        client_socket.settimeout(5)
+                        first_byte = client_socket.recv(1, _socket.MSG_PEEK)
+
+                        if not first_byte:
+                            client_socket.close()
+                            return
+
+                        if first_byte[0] == 0x16:
+                            # TLS ClientHello → proceed normally with SSL
+                            client_socket.settimeout(None)
+                            return original_wrap(client_socket, address)
+                        else:
+                            # Plain HTTP → redirect to HTTPS
+                            porter._redirect_to_https(client_socket)
+                            return
+
+                    except Exception:
+                        try:
+                            client_socket.close()
+                        except Exception:
+                            pass
+
+                server_self.wrap_socket_and_handle = dual_protocol_handler
+
+        pywsgi.WSGIServer.__init__ = patched_init
 
     # ------------------------------------------------------------------
     # Eventlet path
@@ -77,82 +136,17 @@ class Porter:
         eventlet.wrap_ssl = patched_wrap_ssl
 
     # ------------------------------------------------------------------
-    # Stdlib / werkzeug path (fallback if eventlet is not installed)
+    # Stdlib / werkzeug path (fallback if neither gevent nor eventlet)
     # ------------------------------------------------------------------
     def _patch_stdlib_ssl(self):
-        """For the werkzeug threading mode, create a custom ssl_context
-        style object.  (Not needed right now since eventlet is active,
-        but kept for completeness.)
-        """
-        pass  # Placeholder — eventlet path covers the current setup.
-
-
-# ======================================================================
-# Internal: dual-protocol server socket
-# ======================================================================
-
-class _DualProtocolServerSocket:
-    """Wraps a listening socket.  On each ``accept()``, peeks at the
-    first byte to decide TLS vs plain HTTP.
-
-    - TLS connections  → wrapped in SSL, returned to the caller
-    - HTTP connections → 301 redirected and closed (then loop)
-    """
-
-    _PEEK_TIMEOUT = 5  # seconds to wait for first byte
-
-    def __init__(self, sock, certfile, keyfile, https_port,
-                 original_wrap_ssl=None):
-        self._sock = sock
-        self._certfile = certfile
-        self._keyfile = keyfile
-        self._https_port = https_port
-        # Store the ORIGINAL (un-patched) wrap_ssl to avoid recursion
-        self._original_wrap_ssl = original_wrap_ssl
+        """For the werkzeug threading mode."""
+        pass  # Placeholder
 
     # ------------------------------------------------------------------
-    def accept(self):
-        while True:
-            client_sock, addr = self._sock.accept()
-            try:
-                client_sock.settimeout(self._PEEK_TIMEOUT)
-                first_byte = client_sock.recv(1, _socket.MSG_PEEK)
-
-                if not first_byte:
-                    client_sock.close()
-                    continue
-
-                if first_byte[0] == 0x16:
-                    # TLS ClientHello → wrap in SSL using the ORIGINAL
-                    # (un-patched) wrap_ssl to avoid recursion
-                    client_sock.settimeout(None)
-                    if self._original_wrap_ssl is not None:
-                        ssl_sock = self._original_wrap_ssl(
-                            client_sock,
-                            server_side=True,
-                            certfile=self._certfile,
-                            keyfile=self._keyfile,
-                        )
-                    else:
-                        # Fallback: stdlib SSL
-                        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-                        ctx.load_cert_chain(self._certfile, self._keyfile)
-                        ssl_sock = ctx.wrap_socket(
-                            client_sock, server_side=True
-                        )
-                    return ssl_sock, addr
-                else:
-                    # Plain HTTP → redirect
-                    self._redirect_to_https(client_sock)
-
-            except Exception:
-                try:
-                    client_sock.close()
-                except Exception:
-                    pass
-
+    # Shared HTTP → HTTPS redirect logic
     # ------------------------------------------------------------------
     def _redirect_to_https(self, sock):
+        """Read the HTTP request and send a 301 redirect to HTTPS."""
         try:
             data = sock.recv(4096).decode("utf-8", errors="ignore")
             host, path = self._parse_http_request(data)
@@ -205,6 +199,72 @@ class _DualProtocolServerSocket:
                 break
 
         return host, path
+
+
+# ======================================================================
+# Internal: dual-protocol server socket (for eventlet path)
+# ======================================================================
+
+class _DualProtocolServerSocket:
+    """Wraps a listening socket.  On each ``accept()``, peeks at the
+    first byte to decide TLS vs plain HTTP.
+
+    - TLS connections  → wrapped in SSL, returned to the caller
+    - HTTP connections → 301 redirected and closed (then loop)
+    """
+
+    _PEEK_TIMEOUT = 5  # seconds to wait for first byte
+
+    def __init__(self, sock, certfile, keyfile, https_port,
+                 original_wrap_ssl=None):
+        self._sock = sock
+        self._certfile = certfile
+        self._keyfile = keyfile
+        self._https_port = https_port
+        # Store the ORIGINAL (un-patched) wrap_ssl to avoid recursion
+        self._original_wrap_ssl = original_wrap_ssl
+        self._porter = Porter(certfile, keyfile, https_port)
+
+    # ------------------------------------------------------------------
+    def accept(self):
+        while True:
+            client_sock, addr = self._sock.accept()
+            try:
+                client_sock.settimeout(self._PEEK_TIMEOUT)
+                first_byte = client_sock.recv(1, _socket.MSG_PEEK)
+
+                if not first_byte:
+                    client_sock.close()
+                    continue
+
+                if first_byte[0] == 0x16:
+                    # TLS ClientHello → wrap in SSL using the ORIGINAL
+                    # (un-patched) wrap_ssl to avoid recursion
+                    client_sock.settimeout(None)
+                    if self._original_wrap_ssl is not None:
+                        ssl_sock = self._original_wrap_ssl(
+                            client_sock,
+                            server_side=True,
+                            certfile=self._certfile,
+                            keyfile=self._keyfile,
+                        )
+                    else:
+                        # Fallback: stdlib SSL
+                        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                        ctx.load_cert_chain(self._certfile, self._keyfile)
+                        ssl_sock = ctx.wrap_socket(
+                            client_sock, server_side=True
+                        )
+                    return ssl_sock, addr
+                else:
+                    # Plain HTTP → redirect
+                    self._porter._redirect_to_https(client_sock)
+
+            except Exception:
+                try:
+                    client_sock.close()
+                except Exception:
+                    pass
 
     # ------------------------------------------------------------------
     # Proxy everything else to the real underlying socket

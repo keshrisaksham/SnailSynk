@@ -13,8 +13,12 @@ class NotesManager:
         self.root_path.mkdir(parents=True, exist_ok=True)
 
     def _is_safe_path(self, path):
-        """Prevents directory traversal attacks."""
-        return os.path.abspath(path).startswith(os.path.abspath(self.root_path))
+        """Prevents directory traversal: the resolved path must be the notes root or inside it."""
+        base = os.path.realpath(self.root_path)
+        try:
+            return os.path.commonpath([base, os.path.realpath(path)]) == base
+        except ValueError:
+            return False
 
     def get_tree(self):
         """Recursively scans the notes directory to build a file tree."""
@@ -179,6 +183,8 @@ class NotesManager:
         full_path = self.root_path / relative_path
         if not self._is_safe_path(full_path) or not full_path.exists():
             return False, "Item not found."
+        if os.path.realpath(full_path) == os.path.realpath(self.root_path):
+            return False, "Cannot delete the notes root."
         try:
             if full_path.is_dir():
                 shutil.rmtree(full_path)

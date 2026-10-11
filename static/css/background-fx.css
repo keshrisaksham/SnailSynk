@@ -1,0 +1,69 @@
+/* static/css/background-fx.css - the pointer-following background effect: a soft spotlight plus a grid that lights up
+   around the cursor. Everything sits BEHIND the page (z-index -1) and ignores the mouse. Colours come from the accent
+   variables, so it follows the chosen accent and light/dark theme. (The drifting colour blobs that used to be here
+   were removed on purpose: only the cursor effect remains.) */
+.bgfx {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+/* --- cursor effects (only once a mouse has actually moved) ---------------------------------------------- */
+.bgfx-glow,
+.bgfx-grid {
+    position: absolute;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+}
+
+.bgfx.active .bgfx-glow,
+.bgfx.active .bgfx-grid {
+    opacity: 1;
+}
+
+/* soft spotlight: a fixed-size radial gradient that JS moves around with transform (compositor only, very cheap) */
+.bgfx-glow {
+    left: 0;
+    top: 0;
+    width: 640px;
+    height: 640px;
+    margin: -320px 0 0 -320px;
+    border-radius: 50%;
+    background: radial-gradient(circle at center, rgba(var(--c-primary-rgb), 0.17) 0%, rgba(var(--c-primary-rgb), 0.06) 45%, transparent 70%);
+    will-change: transform;
+}
+
+/* The same 20px grid as the page background, in the accent colour, revealed only around the pointer. It is a small
+   (480px) box that JS moves with a GPU transform and whose grid is re-aligned with background-position, so a mouse
+   move repaints a 480px patch. (A full-screen layer with a moving mask repainted the whole screen every move.) */
+.bgfx-grid {
+    left: 0;
+    top: 0;
+    width: 480px;
+    height: 480px;
+    background-image:
+        linear-gradient(to right, rgba(var(--c-primary-rgb), 0.38) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(var(--c-primary-rgb), 0.38) 1px, transparent 1px);
+    background-size: 20px 20px;
+    -webkit-mask-image: radial-gradient(circle at center, #000 0%, rgba(0, 0, 0, 0.55) 38%, transparent 70%);
+    mask-image: radial-gradient(circle at center, #000 0%, rgba(0, 0, 0, 0.55) 38%, transparent 70%);
+    will-change: transform;
+}
+
+/* --- dark theme: slightly different accent tint so the effect reads well on dark ------------------------------ */
+html.dark .bgfx-grid {
+    background-image:
+        linear-gradient(to right, rgba(var(--c-accent-rgb), 0.34) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(var(--c-accent-rgb), 0.34) 1px, transparent 1px);
+}
+
+html.dark .bgfx-glow {
+    background: radial-gradient(circle at center, rgba(var(--c-primary-rgb), 0.22) 0%, rgba(var(--c-primary-rgb), 0.07) 45%, transparent 70%);
+}
+
+/* --- respect "reduce motion": no pointer tracking ------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+    .bgfx-glow, .bgfx-grid { display: none; }
+}

@@ -1,0 +1,483 @@
+/* static/css/notes-editor.css - the Markdown notes editor (see notes-editor.js).
+   Colours come from the shared tokens (--c-*, --glass-*, --btn-*), so light, True Black and every accent follow. */
+
+#editor.md-shell {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    --md-code-bg: rgba(127, 127, 127, 0.14);
+    --md-muted: var(--c-text-secondary);
+    --md-mark: var(--c-text-secondary);
+    --md-hl-keyword: #8250df;
+    --md-hl-string: #0a7d3e;
+    --md-hl-number: #b45309;
+    --md-hl-comment: #6b7280;
+    --md-hl-def: #0550ae;
+    --md-width: 780px;
+}
+
+html.dark #editor.md-shell {
+    --md-code-bg: rgba(255, 255, 255, 0.09);
+    --md-hl-keyword: #c4a5ff;
+    --md-hl-string: #7ee2a0;
+    --md-hl-number: #ffb870;
+    --md-hl-comment: #8b93a1;
+    --md-hl-def: #8ec5ff;
+}
+
+/* ---- formatting bar ---------------------------------------------------------------------------------------- */
+.md-fmt {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+    padding: 0.45rem 0.9rem;
+    border-bottom: 1px solid var(--glass-line, var(--c-border));
+}
+
+.md-fmt[hidden] {
+    display: none;
+}
+
+.md-fmt-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--c-text-main);
+    font: inherit;
+    font-size: 0.8125rem;
+    cursor: pointer;
+    transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.md-fmt-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.md-fmt-btn:hover {
+    background: var(--btn-fill-hover);
+    border-color: rgba(var(--c-primary-rgb), 0.65);
+}
+
+/* "on" at the cursor (bold, a list...): solid accent, so it is obvious */
+.md-fmt-btn.is-on,
+.md-fmt-btn.is-on:hover {
+    background: var(--c-primary);
+    border-color: var(--c-primary);
+    color: var(--c-primary-text);
+}
+
+.md-fmt-btn:focus-visible {
+    outline: 2px solid rgba(var(--c-primary-rgb), 0.55);
+    outline-offset: 1px;
+}
+
+.md-fmt-text {
+    font-size: 0.95rem;
+    line-height: 1;
+}
+
+.md-fmt-btn[data-tool="wiki"] {
+    width: auto;
+    padding: 0 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+}
+
+.md-fmt-sep {
+    width: 1px;
+    height: 18px;
+    margin: 0 6px;
+    background: var(--glass-line, var(--c-border));
+}
+
+/* ---- body: editor and reading view share one centred column ------------------------------------------------ */
+.md-body {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+}
+
+.md-cm,
+.md-reading {
+    position: absolute;
+    inset: 0;
+}
+
+.md-cm[hidden],
+.md-reading[hidden] {
+    display: none;
+}
+
+.md-cm .CodeMirror {
+    height: 100%;
+    background: transparent;
+    color: var(--c-text-main);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.7;
+}
+
+.md-cm .CodeMirror-scroll {
+    padding-bottom: 6rem;
+}
+
+.md-cm .CodeMirror-lines {
+    max-width: var(--md-width);
+    margin: 0 auto;
+    padding: 1.75rem 1.25rem 2rem;
+}
+
+.md-cm .CodeMirror pre.CodeMirror-line,
+.md-cm .CodeMirror pre.CodeMirror-line-like {
+    padding: 0;
+}
+
+.md-cm .CodeMirror-cursor {
+    border-left: 2px solid var(--c-text-main);
+}
+
+.md-cm .CodeMirror-selected,
+.md-cm .CodeMirror-focused .CodeMirror-selected {
+    background: rgba(var(--c-primary-rgb), 0.26);
+}
+
+.md-cm .CodeMirror-placeholder {
+    color: var(--c-text-placeholder, var(--c-text-secondary)) !important;
+    opacity: 0.8;
+}
+
+.md-cm .CodeMirror-activeline-background {
+    background: transparent;
+}
+
+.md-cm .CodeMirror-vscrollbar,
+.md-reading {
+    scrollbar-width: thin;
+    scrollbar-color: var(--btn-outline) transparent;
+}
+
+/* ---- Markdown elements --------------------------------------------------------------------------------------- */
+.cm-s-snail .cm-header { font-weight: 700; color: var(--c-text-main); }
+.cm-s-snail .cm-header-1 { font-size: 1.95em; line-height: 1.3; }
+.cm-s-snail .cm-header-2 { font-size: 1.6em; line-height: 1.3; }
+.cm-s-snail .cm-header-3 { font-size: 1.35em; }
+.cm-s-snail .cm-header-4 { font-size: 1.15em; }
+.cm-s-snail .cm-header-5,
+.cm-s-snail .cm-header-6 { font-size: 1em; color: var(--md-muted); }
+
+.cm-s-snail .cm-strong { font-weight: 700; }
+.cm-s-snail .cm-em { font-style: italic; }
+.cm-s-snail .cm-strikethrough { text-decoration: line-through; color: var(--md-muted); }
+.cm-s-snail .cm-link { color: var(--c-primary); text-decoration: underline; text-underline-offset: 2px; }
+.cm-s-snail .cm-url { color: var(--md-muted); }
+.cm-s-snail .cm-quote { color: var(--md-muted); font-style: italic; }
+.cm-s-snail .cm-hr { color: var(--md-muted); }
+
+/* inline code (the markdown mode styles it as "comment") */
+.cm-s-snail .cm-comment {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    color: var(--c-text-main);
+    background: var(--md-code-bg);
+    border-radius: 4px;
+    padding: 0.1em 0.3em;
+}
+
+.cm-s-snail .cm-wikilink {
+    color: var(--c-primary);
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+}
+
+.cm-s-snail .cm-mdtag {
+    color: var(--c-primary);
+    background: rgba(var(--c-primary-rgb), 0.12);
+    border-radius: 999px;
+    padding: 0.05em 0.45em;
+}
+
+.cm-s-snail .cm-formatting {
+    color: var(--md-mark);
+}
+
+/* list markers: numbers stay, bullets are drawn */
+.cm-s-snail .cm-formatting-list-ol { color: var(--c-primary); font-weight: 600; }
+.cm-s-snail .cm-formatting-list-ul { color: var(--c-primary); }
+
+/* quotes get a bar down the left */
+.md-cm .CodeMirror pre.cm-quoteline {
+    border-left: 3px solid rgba(var(--c-primary-rgb), 0.55);
+    padding-left: 0.9rem;
+}
+
+/* code blocks: one band behind the whole fence */
+.md-cm .cm-codeblock {
+    background: var(--md-code-bg);
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+}
+
+.md-cm .cm-codeblock .CodeMirror-line,
+.md-cm .cm-codeblock .CodeMirror-line * {
+    font-family: var(--font-mono);
+}
+
+.md-cm .cm-codeblock .CodeMirror-line {
+    padding: 0 0.9rem;
+}
+
+.md-cm .cm-codeblock .cm-comment {
+    background: none;
+    padding: 0;
+    font-size: inherit;
+}
+
+.md-cm .cm-codeblock-first { border-radius: 10px 10px 0 0; padding-top: 0.5rem; margin-top: 0.4rem; }
+.md-cm .cm-codeblock-last { border-radius: 0 0 10px 10px; padding-bottom: 0.5rem; margin-bottom: 0.4rem; }
+.md-cm .cm-codeblock-first.cm-codeblock-last { border-radius: 10px; }
+
+.md-cm .cm-codeblock-first .cm-formatting,
+.md-cm .cm-codeblock-last .cm-formatting {
+    opacity: 0.55;
+}
+
+/* a little syntax colour, only inside fenced code (in prose these token types are just list levels) */
+.md-cm .cm-codeblock .cm-keyword,
+.md-cm .cm-codeblock .cm-atom,
+.md-cm .cm-codeblock .cm-builtin { color: var(--md-hl-keyword); }
+.md-cm .cm-codeblock .cm-string,
+.md-cm .cm-codeblock .cm-string-2 { color: var(--md-hl-string); }
+.md-cm .cm-codeblock .cm-number { color: var(--md-hl-number); }
+.md-cm .cm-codeblock .cm-def,
+.md-cm .cm-codeblock .cm-variable-2,
+.md-cm .cm-codeblock .cm-variable-3,
+.md-cm .cm-codeblock .cm-property { color: var(--md-hl-def); }
+.md-cm .cm-codeblock .cm-comment { color: var(--md-hl-comment); }
+
+/* ---- live preview: hide the Markdown marks except on the line you are editing ------------------------------- */
+.md-mode-live .cm-s-snail .CodeMirror-line .cm-formatting-header,
+.md-mode-live .cm-s-snail .CodeMirror-line .cm-formatting-strong,
+.md-mode-live .cm-s-snail .CodeMirror-line .cm-formatting-em,
+.md-mode-live .cm-s-snail .CodeMirror-line .cm-formatting-strikethrough,
+.md-mode-live .cm-s-snail .CodeMirror-line .cm-formatting-quote,
+.md-mode-live .cm-s-snail .CodeMirror-line .cm-formatting-link,
+.md-mode-live .cm-s-snail .CodeMirror-line .cm-formatting-link-string,
+.md-mode-live .cm-s-snail .CodeMirror-line .cm-formatting-image,
+.md-mode-live .cm-s-snail .CodeMirror-line .cm-image-marker,
+.md-mode-live .cm-s-snail .CodeMirror-line .cm-url,
+.md-mode-live .cm-s-snail .CodeMirror-line .cm-formatting-code:not(.cm-formatting-code-block) {
+    font-size: 0;
+}
+
+/* list bullets: replace the "- " with a dot */
+.md-mode-live .cm-s-snail .CodeMirror-line .cm-formatting-list-ul {
+    font-size: 0;
+}
+
+.md-mode-live .cm-s-snail .CodeMirror-line .cm-formatting-list-ul::before {
+    content: "\2022";
+    display: inline-block;
+    width: 1.3em;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--c-primary);
+}
+
+.md-mode-live .cm-s-snail .CodeMirror-line.cm-taskline .cm-formatting-list-ul::before {
+    content: "";
+    width: 0;
+}
+
+/* the line with the cursor shows everything */
+.md-mode-live .cm-s-snail .CodeMirror-activeline .CodeMirror-line .cm-formatting-header,
+.md-mode-live .cm-s-snail .CodeMirror-activeline .CodeMirror-line .cm-formatting-strong,
+.md-mode-live .cm-s-snail .CodeMirror-activeline .CodeMirror-line .cm-formatting-em,
+.md-mode-live .cm-s-snail .CodeMirror-activeline .CodeMirror-line .cm-formatting-strikethrough,
+.md-mode-live .cm-s-snail .CodeMirror-activeline .CodeMirror-line .cm-formatting-quote,
+.md-mode-live .cm-s-snail .CodeMirror-activeline .CodeMirror-line .cm-formatting-link,
+.md-mode-live .cm-s-snail .CodeMirror-activeline .CodeMirror-line .cm-formatting-link-string,
+.md-mode-live .cm-s-snail .CodeMirror-activeline .CodeMirror-line .cm-formatting-image,
+.md-mode-live .cm-s-snail .CodeMirror-activeline .CodeMirror-line .cm-image-marker,
+.md-mode-live .cm-s-snail .CodeMirror-activeline .CodeMirror-line .cm-url,
+.md-mode-live .cm-s-snail .CodeMirror-activeline .CodeMirror-line .cm-formatting-code:not(.cm-formatting-code-block),
+.md-mode-live .cm-s-snail .CodeMirror-activeline .CodeMirror-line .cm-formatting-list-ul {
+    font-size: 1em;
+}
+
+.md-mode-live .cm-s-snail .CodeMirror-activeline .CodeMirror-line .cm-formatting-list-ul::before {
+    content: none;
+}
+
+/* task boxes and other widgets */
+.md-task {
+    display: inline-block;
+    vertical-align: -0.18em;
+    width: 1.1em;
+    height: 1.1em;
+    margin: 0 0.35em 0 0;
+    border: 1.5px solid var(--btn-outline);
+    border-radius: 0.3em;
+    cursor: pointer;
+    transition: background-color 0.14s ease, border-color 0.14s ease;
+}
+
+.md-task:hover {
+    border-color: rgba(var(--c-primary-rgb), 0.7);
+}
+
+.md-task.is-checked {
+    background: var(--c-primary) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='5 12.5 10 17.5 19 7'/%3E%3C/svg%3E") center / 80% no-repeat;
+    border-color: var(--c-primary);
+}
+
+html.dark .md-task.is-checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23050505' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='5 12.5 10 17.5 19 7'/%3E%3C/svg%3E");
+}
+
+.md-task.is-checked ~ span {
+    color: var(--md-muted);
+    text-decoration: line-through;
+}
+
+.md-hr {
+    display: block;
+    width: 100%;
+    padding: 0.6rem 0;
+}
+
+.md-hr hr {
+    border: none;
+    border-top: 2px solid var(--glass-line, var(--c-border));
+    margin: 0;
+}
+
+.md-img {
+    display: inline-block;
+    max-width: 100%;
+    margin: 0.4rem 0;
+}
+
+.md-img img {
+    display: block;
+    max-width: 100%;
+    max-height: 480px;
+    border-radius: 10px;
+}
+
+.md-img.is-broken {
+    padding: 0.4rem 0.7rem;
+    border: 1px dashed var(--btn-outline);
+    border-radius: 8px;
+    color: var(--md-muted);
+    font-size: 0.85em;
+}
+
+/* ---- source mode: everything visible, no sizing -------------------------------------------------------------- */
+.md-mode-source .md-cm .CodeMirror {
+    font-family: var(--font-mono);
+    font-size: 14.5px;
+}
+
+.md-mode-source .cm-s-snail .cm-header-1,
+.md-mode-source .cm-s-snail .cm-header-2,
+.md-mode-source .cm-s-snail .cm-header-3,
+.md-mode-source .cm-s-snail .cm-header-4,
+.md-mode-source .cm-s-snail .cm-header-5,
+.md-mode-source .cm-s-snail .cm-header-6 {
+    font-size: 1em;
+    color: var(--c-primary);
+}
+
+.md-mode-source .cm-s-snail .cm-comment {
+    padding: 0;
+}
+
+/* ---- reading view ------------------------------------------------------------------------------------------- */
+.md-reading {
+    overflow-y: auto;
+    padding: 1.75rem max(1.25rem, calc((100% - var(--md-width)) / 2)) 4rem;
+    font-size: 16px;
+    line-height: 1.75;
+    color: var(--c-text-main);
+}
+
+.md-reading > :first-child { margin-top: 0; }
+.md-reading h1, .md-reading h2, .md-reading h3, .md-reading h4 { line-height: 1.3; margin: 1.6em 0 0.5em; }
+.md-reading h1 { font-size: 1.95em; }
+.md-reading h2 { font-size: 1.6em; border-bottom: 1px solid var(--glass-line, var(--c-border)); padding-bottom: 0.25em; }
+.md-reading h3 { font-size: 1.35em; }
+.md-reading h5, .md-reading h6 { color: var(--md-muted); }
+.md-reading p, .md-reading ul, .md-reading ol, .md-reading blockquote, .md-reading pre, .md-reading table { margin: 0.8em 0; }
+.md-reading a { color: var(--c-primary); text-underline-offset: 2px; }
+.md-reading a.wikilink { text-decoration: underline dotted; }
+.md-reading ul, .md-reading ol { padding-left: 1.6em; }
+.md-reading li::marker { color: var(--c-primary); }
+.md-reading li > input[type="checkbox"] { margin: 0 0.5em 0 -1.4em; accent-color: var(--c-primary); opacity: 1; }
+.md-reading li > p { margin: 0.2em 0; }
+.md-reading li > ul, .md-reading li > ol { margin: 0.2em 0; }
+.md-reading blockquote { padding: 0.1em 1em; border-left: 3px solid rgba(var(--c-primary-rgb), 0.55); color: var(--md-muted); }
+.md-reading code { font-family: var(--font-mono); font-size: 0.9em; background: var(--md-code-bg, rgba(127, 127, 127, 0.14)); border-radius: 4px; padding: 0.1em 0.35em; }
+.md-reading pre { background: var(--md-code-bg, rgba(127, 127, 127, 0.14)); border-radius: 10px; padding: 0.9rem 1rem; overflow-x: auto; }
+.md-reading pre code { background: none; padding: 0; }
+.md-reading img { max-width: 100%; border-radius: 10px; }
+.md-reading hr { border: none; border-top: 2px solid var(--glass-line, var(--c-border)); margin: 1.6em 0; }
+.md-reading table { border-collapse: collapse; display: block; overflow-x: auto; }
+.md-reading th, .md-reading td { border: 1px solid var(--btn-border, var(--c-border)); padding: 0.45em 0.8em; font-family: inherit; font-size: inherit; text-align: left; }
+.md-reading th { background: var(--glass-item-hover, rgba(127, 127, 127, 0.1)); }
+
+/* ---- status bar --------------------------------------------------------------------------------------------- */
+.md-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.4rem 1rem;
+    border-top: 1px solid var(--glass-line, var(--c-border));
+    font-size: 0.75rem;
+    color: var(--md-muted, var(--c-text-secondary));
+    font-variant-numeric: tabular-nums;
+}
+
+.md-stats {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.md-save {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-shrink: 0;
+}
+
+.md-save i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--c-success, #16a34a);
+}
+
+.md-save[data-kind="dirty"] i { background: #f59e0b; }
+.md-save[data-kind="saving"] i { background: var(--c-primary); }
+.md-save[data-kind="info"] i { background: var(--c-info, #3b82f6); }
+.md-save b { font-weight: 500; }
+
+@media (max-width: 768px) {
+    .md-cm .CodeMirror-lines { padding: 1.1rem 0.9rem 1.5rem; }
+    .md-reading { padding: 1.1rem 0.9rem 3rem; }
+    .md-fmt { flex-wrap: nowrap; overflow-x: auto; padding: 0.4rem 0.6rem; }
+    .md-fmt-btn { flex-shrink: 0; }
+    .md-stats { display: none; }
+}
