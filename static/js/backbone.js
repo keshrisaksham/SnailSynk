@@ -115,13 +115,14 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const isRandomAccent = () => localStorage.getItem('accentMode') !== 'fixed';
     // Picking a colour yourself pins it; the "new colour every visit" switch turns random back on
+    // the switch exists twice: in the phone's settings sheet (#randomAccentToggle) and in the desktop colour picker
+    const autoAccentSwitches = () => document.querySelectorAll('#randomAccentToggle, .accent-auto-toggle');
     const setAccentMode = (mode) => {
         localStorage.setItem('accentMode', mode);
-        const sw = document.getElementById('randomAccentToggle');
-        if (sw) {
+        autoAccentSwitches().forEach(sw => {
             sw.classList.toggle('on', mode !== 'fixed');
             sw.setAttribute('aria-checked', mode !== 'fixed' ? 'true' : 'false');
-        }
+        });
     };
     accentOptions.forEach(opt => {
         if (opt.dataset.accent === currentAccentName()) {
@@ -129,14 +130,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     setAccentMode(isRandomAccent() ? 'random' : 'fixed');
-    const randomAccentToggle = document.getElementById('randomAccentToggle');
-    if (randomAccentToggle) {
-        randomAccentToggle.addEventListener('click', () => {
+    autoAccentSwitches().forEach(sw => {
+        sw.addEventListener('click', () => {
             setAccentMode(isRandomAccent() ? 'fixed' : 'random');
             // Pinning keeps whatever colour is showing right now
             if (!isRandomAccent()) localStorage.setItem('accent', currentAccentName());
         });
-    }
+    });
 
     if (accentToggle && accentPicker) {
         // Toggle picker visibility

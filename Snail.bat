@@ -9,7 +9,10 @@ rem    Snail.bat                 first run: friendly setup, then starts the app.
 rem                              Every later run just starts the app.
 rem    Snail.bat --reset-admin   forgot the admin password? Set a new one.
 rem    Snail.bat --setup         run the setup questions again.
+rem    Snail.bat --uninstall     remove SnailSynk, but keep your notes and the uploaded files.
+rem    Snail.bat --clean-install erase EVERYTHING (notes and uploads too), then install from scratch.
 rem    Snail.bat --help          this list.
+rem    (add --yes to --uninstall / --clean-install to skip the "are you sure?" question)
 rem
 rem  This file finds Python, installs the packages and makes the shortcut. The
 rem  questions, the admin account and the summary live in essentials\setup_wizard.py
@@ -25,6 +28,8 @@ if /i "%~1"=="--help" goto :help
 if /i "%~1"=="-h" goto :help
 if /i "%~1"=="/?" goto :help
 if /i "%~1"=="--reset-admin" goto :reset_admin
+if /i "%~1"=="--uninstall" goto :uninstall
+if /i "%~1"=="--clean-install" goto :clean_install
 if /i "%~1"=="--setup" del "install.loc" >nul 2>&1
 if not "%~1"=="" if /i not "%~1"=="--setup" goto :unknown_option
 
@@ -39,7 +44,10 @@ echo.
 echo     Snail.bat                 first run: setup, then start. After that: just start.
 echo     Snail.bat --reset-admin   forgot the admin password? pick a new one.
 echo     Snail.bat --setup         run the setup questions again.
+echo     Snail.bat --uninstall     remove SnailSynk, keeping your notes and uploaded files.
+echo     Snail.bat --clean-install erase everything (notes and uploads too), install from scratch.
 echo     Snail.bat --help          show this.
+echo       (add --yes to --uninstall or --clean-install to skip the question)
 echo.
 popd
 exit /b 0
@@ -212,3 +220,59 @@ echo.
 pause
 popd
 exit /b %RC%
+
+
+rem ============================================================================
+rem  Uninstall: removes the program, keeps notes and uploaded files
+rem  (the deleting is done by essentials\cleanup.py)
+rem ============================================================================
+:uninstall
+call :find_python
+if not defined PY goto :no_python
+set "CLEAN_YES="
+if /i "%~2"=="--yes" set "CLEAN_YES=1"
+if /i "%~2"=="-y" set "CLEAN_YES=1"
+cls
+%PY% "%WIZARD%" banner --sub "uninstall"
+if defined CLEAN_YES goto :uninstall_go
+%PY% -B "essentials\cleanup.py" uninstall --ask-only
+if errorlevel 1 goto :cleanup_cancelled
+:uninstall_go
+set "SNAIL_DIR=%CD%"
+rem Remove the desktop shortcut and take this folder out of your PATH again
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$f=[Environment]::GetFolderPath('Desktop')+'\SnailSynk.lnk'; if(Test-Path $f){Remove-Item $f -Force}; $d=$env:SNAIL_DIR; $p=[Environment]::GetEnvironmentVariable('Path','User'); if($p){$n=(($p -split ';') | Where-Object { $_ -and $_ -ne $d }) -join ';'; [Environment]::SetEnvironmentVariable('Path',$n,'User')}" >nul 2>&1
+echo   [OK] Removed the shortcut and the PATH entry.
+rem Everything below is in one block on purpose: cmd reads it all before it runs, so it is fine that Python deletes this file.
+(
+  %PY% -B "essentials\cleanup.py" uninstall --yes
+  echo.
+  popd
+  exit /b 0
+)
+
+
+rem ============================================================================
+rem  Clean install: erase ALL data (notes and uploads too), then set up again
+rem ============================================================================
+:clean_install
+call :find_python
+if not defined PY goto :no_python
+set "CLEAN_YES="
+if /i "%~2"=="--yes" set "CLEAN_YES=1"
+if /i "%~2"=="-y" set "CLEAN_YES=1"
+cls
+%PY% "%WIZARD%" banner --sub "clean install"
+if defined CLEAN_YES goto :clean_go
+%PY% -B "essentials\cleanup.py" clean --ask-only
+if errorlevel 1 goto :cleanup_cancelled
+:clean_go
+%PY% -B "essentials\cleanup.py" clean --yes
+if errorlevel 1 goto :cleanup_cancelled
+goto :install_app
+
+
+:cleanup_cancelled
+echo.
+pause
+popd
+exit /b 1

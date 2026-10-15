@@ -142,10 +142,18 @@ The hard part is over. From here on it's one click, which even you can manage.
 ```
 Snail.sh --reset-admin     forgot the admin password? of course you did
 Snail.sh --setup           run the setup questions again, from the top
+Snail.sh --uninstall       remove SnailSynk, but keep your notes and uploaded files
+Snail.sh --clean-install   erase EVERYTHING and install from scratch
 Snail.sh --help            list the options (revolutionary, we know)
 ```
 
-On Windows use `Snail.bat` with the same options.
+On Windows use `Snail.bat` with the same options. On Android (Termux) it's `bash snail_termux.sh --uninstall` and `bash snail_termux.sh --clean-install`.
+
+**`--uninstall`** removes the program: the app folder, your settings, the admin account, the certificate, logs, the shortcuts and the `snailsynk` command. It **keeps your notes** (`instance/notes`) and **the files people uploaded** (`Downloads/SnailSynk/files`). For goodbyes with a safety net. File locks and favorites are stored with the program, so those go; the files themselves stay, just unlocked.
+
+**`--clean-install`** is the nuclear option. It wipes **everything SnailSynk ever stored, notes and uploaded files included**, then sets itself up again from the first question. Use it when you want a genuinely fresh start, or when you've "tried a few things" and the snail no longer trusts your judgement.
+
+Both show exactly what will be removed and what will stay, then wait for you to type `yes` (uninstall) or `DELETE` (clean install). Anything else cancels. Add `--yes` (for example `Snail.sh --uninstall --yes`) to skip the question in scripts. Python packages are shared with your other programs, so neither option removes them.
 
 Prefer to configure by hand? Everything lives in `.env`. Go wild:
 

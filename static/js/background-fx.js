@@ -1,7 +1,9 @@
-// static/js/background-fx.js - the pointer-following background effect (see background-fx.css).
-// Creates the layers, then eases a spotlight and a grid highlight toward the pointer. Every per-move update is a GPU
-// transform (or a repaint of one small box). The animation frame loop only runs while something is still moving,
-// so an idle page costs nothing. Touch screens and "reduce motion" users get no pointer effect.
+// static/js/background-fx.js - the animated background (see background-fx.css).
+//   computer: eases a spotlight and a grid highlight toward the mouse. Every per-move update is a GPU transform (or a
+//             repaint of one small box), and the animation frame loop only runs while something is still moving, so an
+//             idle page costs nothing.
+//   phone / tablet: the glows are drawn and drifted by CSS alone; this file only creates them.
+// Which one you see is decided in the stylesheet (touch / narrow screen vs mouse), so resizing or rotating just works.
 (function () {
     if (document.getElementById('bgfx')) return;
     var root = document.createElement('div');
@@ -9,12 +11,12 @@
     root.className = 'bgfx';
     root.setAttribute('aria-hidden', 'true');
     root.innerHTML =
+        '<div class="bgfx-orb-wrap a"><div class="bgfx-orb"></div></div>' +
+        '<div class="bgfx-orb-wrap b"><div class="bgfx-orb"></div></div>' +
+        '<div class="bgfx-orb-wrap c"><div class="bgfx-orb"></div></div>' +
         '<div class="bgfx-grid"></div>' +
         '<div class="bgfx-glow"></div>';
     document.body.insertBefore(root, document.body.firstChild);
-
-    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduce) return;                                   // no pointer tracking at all
 
     var glow = root.querySelector('.bgfx-glow');
     var grid = root.querySelector('.bgfx-grid');
@@ -40,6 +42,8 @@
         }
     }
 
+    // (This runs even when the OS asks for "reduce motion": it only moves while you move the mouse, which is you
+    // choosing to move it. The drifting glows are the part that holds still for those users, in the stylesheet.)
     window.addEventListener('pointermove', function (e) {
         if (e.pointerType && e.pointerType !== 'mouse') return;   // fingers and pens don't get a spotlight
         target.x = e.clientX;

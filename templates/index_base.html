@@ -111,12 +111,19 @@
                         </svg>
                     </button>
                     <div id="accent-picker" class="accent-picker">
-                        <button class="accent-option accent-red" data-accent="red" title="Red"></button>
-                        <button class="accent-option accent-blue" data-accent="blue" title="Blue"></button>
-                        <button class="accent-option accent-green" data-accent="green" title="Green"></button>
-                        <button class="accent-option accent-purple" data-accent="purple" title="Purple"></button>
-                        <button class="accent-option accent-orange" data-accent="orange" title="Orange"></button>
-                        <button class="accent-option accent-black" data-accent="black" title="Black"></button>
+                        <div class="accent-swatches">
+                            <button class="accent-option accent-red" data-accent="red" title="Red"></button>
+                            <button class="accent-option accent-blue" data-accent="blue" title="Blue"></button>
+                            <button class="accent-option accent-green" data-accent="green" title="Green"></button>
+                            <button class="accent-option accent-purple" data-accent="purple" title="Purple"></button>
+                            <button class="accent-option accent-orange" data-accent="orange" title="Orange"></button>
+                            <button class="accent-option accent-black" data-accent="black" title="Black"></button>
+                        </div>
+                        <button type="button" class="accent-auto-toggle" role="switch" aria-checked="true"
+                            title="Pick a different colour each time the page is opened">
+                            <span class="accent-auto-text">Auto-change colour<small>A new one every visit</small></span>
+                            <span class="accent-switch" aria-hidden="true"></span>
+                        </button>
                     </div>
                 </div>
                 <button id="theme-toggle" class="btn-icon" title="Toggle theme">

@@ -4,6 +4,12 @@
 # SnailSynk Setup & Launch Script for Termux (Android)
 # ================================================================================
 # No root / sudo required. Uses Termux's pkg manager for system packages.
+#
+#   bash snail_termux.sh                 first run: setup, then start. After that: just start.
+#   bash snail_termux.sh --uninstall     remove SnailSynk, but keep your notes and the uploaded files.
+#   bash snail_termux.sh --clean-install erase EVERYTHING (notes and uploads too), then install from scratch.
+#   bash snail_termux.sh --help          this list.
+#   (add --yes to --uninstall / --clean-install to skip the "are you sure?" question)
 
 set -e
 
@@ -162,8 +168,71 @@ launch_routine() {
 }
 
 # ================================================================================
+# UNINSTALL / CLEAN INSTALL (the deleting itself is done by essentials/cleanup.py)
+# ================================================================================
+usage() {
+    echo ""
+    echo "  bash snail_termux.sh                 first run: setup, then start. After that: just start."
+    echo "  bash snail_termux.sh --uninstall     remove SnailSynk, keeping your notes and uploaded files."
+    echo "  bash snail_termux.sh --clean-install erase everything (notes and uploads too), install from scratch."
+    echo "  bash snail_termux.sh --help          show this."
+    echo "    (add --yes to --uninstall or --clean-install to skip the question)"
+    echo ""
+}
+
+# Asks "are you sure?" (cleanup.py shows exactly what goes and what stays). Returns non-zero if you said no.
+confirm_cleanup() {
+    if ! command -v python &> /dev/null; then
+        print_error "python wasn't found, and I need it to do this safely."
+        exit 1
+    fi
+    if [ "$ASSUME_YES" -eq 1 ]; then return 0; fi
+    python -B essentials/cleanup.py "$1" --ask-only
+}
+
+uninstall_routine() {
+    print_header "SNAILSYNK UNINSTALL (Termux)"
+    confirm_cleanup uninstall || return 1
+    # the 'snailsynk' alias that setup added
+    if [ -f "$HOME/.bashrc" ]; then
+        sed -i '/# SnailSynk launcher/d;/alias snailsynk=/d' "$HOME/.bashrc" 2>/dev/null || true
+        print_step "Removed the 'snailsynk' alias from .bashrc"
+    fi
+    python -B essentials/cleanup.py uninstall --yes
+}
+
+clean_routine() {
+    print_header "SNAILSYNK CLEAN INSTALL (Termux)"
+    confirm_cleanup clean || return 1
+    python -B essentials/cleanup.py clean --yes
+}
+
+# ================================================================================
 #                                 MAIN LOGIC
 # ================================================================================
+ASSUME_YES=0
+if [ "${2:-}" = "--yes" ] || [ "${2:-}" = "-y" ]; then ASSUME_YES=1; fi
+
+# (the whole case is read before it runs, so it is safe that this script deletes itself on the way out)
+case "${1:-}" in
+    --help|-h)
+        usage
+        exit 0 ;;
+    --uninstall)
+        rc=0; uninstall_routine || rc=$?
+        exit "$rc" ;;
+    --clean-install)
+        if ! clean_routine; then exit 1; fi
+        setup_routine
+        launch_routine
+        exit 0 ;;
+    "") ;;
+    *)
+        print_error "I don't know what '$1' means."
+        usage
+        exit 1 ;;
+esac
+
 if [ -f "install.loc" ]; then
     launch_routine
 else

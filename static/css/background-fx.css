@@ -1,7 +1,8 @@
-/* static/css/background-fx.css - the pointer-following background effect: a soft spotlight plus a grid that lights up
-   around the cursor. Everything sits BEHIND the page (z-index -1) and ignores the mouse. Colours come from the accent
-   variables, so it follows the chosen accent and light/dark theme. (The drifting colour blobs that used to be here
-   were removed on purpose: only the cursor effect remains.) */
+/* static/css/background-fx.css - the animated background, split by device:
+     computer (a mouse): a soft spotlight and a grid that lights up around the pointer
+     phone / tablet (touch, or a narrow screen): a few big accent-coloured glows that drift very slowly
+   Everything sits BEHIND the page (z-index -1) and ignores the pointer. Colours come from the accent variables, so it
+   follows the chosen accent and the light / dark theme. */
 .bgfx {
     position: fixed;
     inset: 0;
@@ -10,7 +11,7 @@
     pointer-events: none;
 }
 
-/* --- cursor effects (only once a mouse has actually moved) ---------------------------------------------- */
+/* ==== computer: follows the mouse ========================================================================== */
 .bgfx-glow,
 .bgfx-grid {
     position: absolute;
@@ -27,11 +28,11 @@
 .bgfx-glow {
     left: 0;
     top: 0;
-    width: 640px;
-    height: 640px;
-    margin: -320px 0 0 -320px;
+    width: 720px;
+    height: 720px;
+    margin: -360px 0 0 -360px;
     border-radius: 50%;
-    background: radial-gradient(circle at center, rgba(var(--c-primary-rgb), 0.17) 0%, rgba(var(--c-primary-rgb), 0.06) 45%, transparent 70%);
+    background: radial-gradient(circle at center, rgba(var(--c-primary-rgb), 0.26) 0%, rgba(var(--c-primary-rgb), 0.10) 45%, transparent 70%);
     will-change: transform;
 }
 
@@ -44,26 +45,62 @@
     width: 480px;
     height: 480px;
     background-image:
-        linear-gradient(to right, rgba(var(--c-primary-rgb), 0.38) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(var(--c-primary-rgb), 0.38) 1px, transparent 1px);
+        linear-gradient(to right, rgba(var(--c-primary-rgb), 0.55) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(var(--c-primary-rgb), 0.55) 1px, transparent 1px);
     background-size: 20px 20px;
-    -webkit-mask-image: radial-gradient(circle at center, #000 0%, rgba(0, 0, 0, 0.55) 38%, transparent 70%);
-    mask-image: radial-gradient(circle at center, #000 0%, rgba(0, 0, 0, 0.55) 38%, transparent 70%);
+    -webkit-mask-image: radial-gradient(circle at center, #000 0%, rgba(0, 0, 0, 0.6) 40%, transparent 70%);
+    mask-image: radial-gradient(circle at center, #000 0%, rgba(0, 0, 0, 0.6) 40%, transparent 70%);
     will-change: transform;
 }
 
-/* --- dark theme: slightly different accent tint so the effect reads well on dark ------------------------------ */
 html.dark .bgfx-grid {
     background-image:
-        linear-gradient(to right, rgba(var(--c-accent-rgb), 0.34) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(var(--c-accent-rgb), 0.34) 1px, transparent 1px);
+        linear-gradient(to right, rgba(var(--c-accent-rgb), 0.5) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(var(--c-accent-rgb), 0.5) 1px, transparent 1px);
 }
 
 html.dark .bgfx-glow {
-    background: radial-gradient(circle at center, rgba(var(--c-primary-rgb), 0.22) 0%, rgba(var(--c-primary-rgb), 0.07) 45%, transparent 70%);
+    background: radial-gradient(circle at center, rgba(var(--c-primary-rgb), 0.30) 0%, rgba(var(--c-primary-rgb), 0.11) 45%, transparent 70%);
 }
 
-/* --- respect "reduce motion": no pointer tracking ------------------------------------------------------- */
-@media (prefers-reduced-motion: reduce) {
+/* ==== phone / tablet: slowly drifting glows ================================================================= */
+.bgfx-orb-wrap {
+    display: none;
+    position: absolute;
+}
+
+.bgfx-orb {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle at center, rgba(var(--c-primary-rgb), 0.30) 0%, rgba(var(--c-primary-rgb), 0.11) 42%, transparent 68%);
+    animation: bgfx-drift 42s ease-in-out infinite alternate;
+    will-change: transform;
+}
+
+.bgfx-orb-wrap.a { width: 120vw; height: 120vw; left: -45vw; top: -38vw; }
+.bgfx-orb-wrap.b { width: 105vw; height: 105vw; right: -48vw; top: 38vh; }
+.bgfx-orb-wrap.c { width: 115vw; height: 115vw; left: -30vw; bottom: -52vw; }
+.bgfx-orb-wrap.b .bgfx-orb { animation-duration: 55s; animation-delay: -14s; animation-direction: alternate-reverse; }
+.bgfx-orb-wrap.c .bgfx-orb { animation-duration: 68s; animation-delay: -30s; }
+
+@keyframes bgfx-drift {
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    50%  { transform: translate3d(14vw, 9vw, 0) scale(1.1); }
+    100% { transform: translate3d(-10vw, 16vw, 0) scale(0.92); }
+}
+
+html.dark .bgfx-orb {
+    background: radial-gradient(circle at center, rgba(var(--c-primary-rgb), 0.36) 0%, rgba(var(--c-primary-rgb), 0.13) 42%, transparent 68%);
+}
+
+/* the split: touch devices and narrow screens get the glows, everyone else gets the mouse effect */
+@media (max-width: 768px), (hover: none) and (pointer: coarse) {
+    .bgfx-orb-wrap { display: block; }
     .bgfx-glow, .bgfx-grid { display: none; }
+}
+
+/* "reduce motion": the glows stay, but they hold still. (The mouse effect only moves when you move the mouse.) */
+@media (prefers-reduced-motion: reduce) {
+    .bgfx-orb { animation: none; }
 }

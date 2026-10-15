@@ -7,7 +7,10 @@
 #                              Every later run just starts the app.
 #   ./Snail.sh --reset-admin   forgot the admin password? Set a new one.
 #   ./Snail.sh --setup         run the setup questions again.
+#   ./Snail.sh --uninstall     remove SnailSynk, but keep your notes and the uploaded files.
+#   ./Snail.sh --clean-install erase EVERYTHING (notes and uploads too), then install from scratch.
 #   ./Snail.sh --help          this list.
+#   (add --yes to --uninstall / --clean-install to skip the "are you sure?" question)
 #
 # This script does what only a shell can (Python, packages, shortcuts). The questions,
 # the admin account and the summary live in essentials/setup_wizard.py.
@@ -85,7 +88,10 @@ usage() {
     say "  ./Snail.sh                 first run: setup, then start. After that: just start."
     say "  ./Snail.sh --reset-admin   forgot the admin password? pick a new one."
     say "  ./Snail.sh --setup         run the setup questions again."
+    say "  ./Snail.sh --uninstall     remove SnailSynk, keeping your notes and uploaded files."
+    say "  ./Snail.sh --clean-install erase everything (notes and uploads too) and install from scratch."
     say "  ./Snail.sh --help          show this."
+    note "Add --yes to --uninstall or --clean-install to skip the question."
     echo
 }
 
@@ -285,6 +291,66 @@ EOF
 }
 
 # --------------------------------------------------------------------------------
+# Uninstall / clean install (the deleting itself is done by essentials/cleanup.py)
+# --------------------------------------------------------------------------------
+# Removes the 'snailsynk' command and the shortcuts that setup created.
+remove_integration() {
+    local u_home="$HOME" f left=() failed=0
+    if [ -n "${SUDO_USER:-}" ]; then u_home=$(getent passwd "$SUDO_USER" | cut -d: -f6); fi
+    rm -f "$u_home/Desktop/SnailSynk.desktop" "$u_home/.local/share/applications/SnailSynk.desktop" \
+          "$u_home/.local/share/icons/snailsynk.png"
+    # setup created these as root: try without sudo first, and only ask for it if something is left
+    for f in /usr/local/bin/snailsynk /usr/share/applications/SnailSynk.desktop /usr/share/pixmaps/snailsynk.png; do
+        rm -f "$f" 2> /dev/null || true
+        if [ -e "$f" ]; then left+=("$f"); fi
+    done
+    if [ "${#left[@]}" -gt 0 ]; then
+        if [ "$EUID" -eq 0 ]; then
+            rm -f "${left[@]}" || failed=1
+        elif command -v sudo &> /dev/null; then
+            note "Removing the 'snailsynk' command needs sudo."
+            sudo rm -f "${left[@]}" || failed=1
+        else
+            failed=1
+        fi
+    fi
+    if [ "$failed" -eq 1 ]; then
+        warn "Couldn't remove everything. Delete these yourself: ${left[*]}"
+    else
+        ok "Removed the shortcuts and the 'snailsynk' command."
+    fi
+}
+
+# Asks "are you sure?" (cleanup.py shows exactly what goes and what stays). Returns non-zero if you said no.
+confirm_cleanup() {
+    if ! command -v python3 &> /dev/null; then
+        bad "python3 wasn't found, and I need it to do this safely."
+        exit 1
+    fi
+    if [ "$ASSUME_YES" -eq 1 ]; then return 0; fi
+    as_user python3 -B essentials/cleanup.py "$1" --ask-only
+}
+
+uninstall_routine() {
+    banner "uninstall"
+    if confirm_cleanup uninstall; then
+        remove_integration
+        as_user python3 -B essentials/cleanup.py uninstall --yes
+    else
+        return 1
+    fi
+}
+
+clean_routine() {
+    banner "clean install"
+    if confirm_cleanup clean; then
+        as_user python3 -B essentials/cleanup.py clean --yes
+    else
+        return 1
+    fi
+}
+
+# --------------------------------------------------------------------------------
 # Launch
 # --------------------------------------------------------------------------------
 launch_routine() {
@@ -335,6 +401,9 @@ elevate_and_setup() {
 # ================================================================================
 #                                 MAIN LOGIC
 # ================================================================================
+ASSUME_YES=0
+if [ "${2:-}" = "--yes" ] || [ "${2:-}" = "-y" ]; then ASSUME_YES=1; fi
+
 case "${1:-}" in
     --help|-h)
         usage
@@ -349,6 +418,15 @@ case "${1:-}" in
     --set-icon)
         create_desktop_icon
         exit ;;
+    --uninstall)
+        # the whole case is read before it runs, so it is safe that this script deletes itself on the way out
+        rc=0; uninstall_routine || rc=$?
+        exit "$rc" ;;
+    --clean-install)
+        # wipe all data, then fall through to a first-run setup and launch
+        if ! clean_routine; then exit 1; fi
+        elevate_and_setup
+        launch_routine ;;
     --run-setup)
         # internal: the elevated half of the first run
         if [ "$EUID" -ne 0 ]; then
