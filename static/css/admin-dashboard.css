@@ -546,6 +546,14 @@ html.dark .monitor-tab-btn:hover {
     height: 14px;
 }
 
+.buffer-msg-actions .buffer-collapse-btn {
+    display: none;
+}
+
+.buffer-msg-card.is-expanded .buffer-msg-actions .buffer-collapse-btn {
+    display: inline-flex;
+}
+
 .buffer-msg-text {
     font-size: 0.875rem;
     color: var(--c-text-main);

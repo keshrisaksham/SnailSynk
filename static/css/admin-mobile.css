@@ -1,0 +1,937 @@
+/* admin-mobile.css - the phone layout for the admin pages (monitoring dashboard + the shared header / bottom bar).
+   Phones only (max-width: 768px), loaded last so it wins over admin-dashboard.css and glass.css. Everything follows
+   --c-primary / --c-primary-rgb, so it matches the theme and the accent colour, light or dark.
+   Before: the page was pinned to the screen height with every layer clipping, so the stat cards ate 40% of the screen,
+   the tab panel scrolled inside itself, and the chart was cut off by the bar. Now the page scrolls as one piece. */
+
+/* pager under Recent Activity and History (10 at a time): [Prev]  Page 2 of 5  [Next] - all screen sizes */
+.pagination-footer {
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.pagination-footer .page-info {
+    flex: 1 1 auto;
+    text-align: center;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--c-text-muted);
+    white-space: nowrap;
+}
+
+.pagination-footer .btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+    pointer-events: none;
+}
+
+@media (max-width: 768px) {
+
+    /* ---- header: same text as before, just kept a fixed height so the sticky tab bar can sit right under it ---- */
+    body.glass.admin-page .app-header {
+        height: auto;
+        padding: 0;
+        /* cards scroll underneath it, so it must not show them through */
+        background: color-mix(in srgb, var(--c-surface) 94%, transparent);
+        -webkit-backdrop-filter: blur(14px) saturate(150%);
+        backdrop-filter: blur(14px) saturate(150%);
+    }
+
+    body.glass.admin-page .app-header .app-container {
+        height: auto;
+        min-height: 57px;
+    }
+
+    /* ---- one page scroll: nothing is pinned to the screen height any more -------------------------------- */
+    /* common.css pins body to the screen (height: 100vh; overflow: hidden) and the admin pages don't load
+       mobile-responsive.css, which is what undoes that on the main page - so touch scrolling was blocked */
+    html:has(.monitoring-container) {
+        height: auto;
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    /* body must NOT be a scroll container itself, or the sticky header / tab bar stick to it instead of the screen */
+    body.glass.admin-page:has(.monitoring-container) {
+        height: auto;
+        min-height: 100vh;
+        overflow: visible;
+    }
+
+    body.glass.admin-page {
+        padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    }
+
+    body.glass.admin-page .admin-main-container {
+        display: block;
+        overflow: visible;
+        background: transparent;
+    }
+
+    body.glass.admin-page .admin-content {
+        height: auto !important;
+        min-height: 0;
+        overflow: visible;
+        display: block;
+        padding: 0.75rem 0.75rem 0.5rem;
+        margin-left: 0 !important;
+        width: 100%;
+    }
+
+    body.glass.admin-page .monitoring-container,
+    body.glass.admin-page .monitor-tab-content,
+    body.glass.admin-page .monitor-tab-panel,
+    body.glass.admin-page .tab-panel-body {
+        overflow: visible;
+        height: auto;
+        min-height: 0;
+    }
+
+    body.glass.admin-page .monitoring-container {
+        display: block;
+    }
+
+    /* ---- stat cards: a compact 2 x 2, icon beside the figures ------------------------------------------- */
+    body.glass.admin-page .stats-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 0.55rem;
+        margin-bottom: 0.75rem;
+    }
+
+    body.glass.admin-page .stat-card {
+        padding: 0.7rem 0.7rem 0.7rem 0.75rem;
+        gap: 0.6rem;
+        border-radius: 16px;
+        min-width: 0;
+    }
+
+    body.glass.admin-page .stat-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 11px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.14);
+    }
+
+    body.glass.admin-page .stat-icon svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    body.glass.admin-page .stat-content {
+        min-width: 0;
+    }
+
+    body.glass.admin-page .stat-label {
+        margin: 0;
+        font-size: 0.58rem;
+        font-weight: 600;
+        letter-spacing: 0.07em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    body.glass.admin-page .stat-value {
+        margin-top: 0.2rem;
+        font-size: 1.5rem;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+    }
+
+    body.glass.admin-page .stat-trend {
+        margin: 0.2rem 0 0;
+        font-size: 0.64rem;
+        color: var(--c-text-muted);
+    }
+
+    /* ---- tabs: four equal segments, icon over label, stuck under the header while you scroll ---------------- */
+    body.glass.admin-page .monitor-tab-bar {
+        position: sticky;
+        top: 58px;
+        z-index: 50;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.2rem;
+        padding: 0.25rem;
+        margin: 0 0 0.75rem;
+        overflow: visible;
+        border-radius: 18px;
+        box-shadow: 0 6px 18px rgba(31, 38, 60, 0.08);
+        -webkit-backdrop-filter: blur(14px) saturate(150%);
+        backdrop-filter: blur(14px) saturate(150%);
+        background: color-mix(in srgb, var(--c-surface) 86%, transparent);
+    }
+
+    body.glass.admin-page .monitor-tab-btn {
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        gap: 0.22rem;
+        padding: 0.5rem 0.15rem 0.45rem;
+        border-radius: 14px;
+        font-size: 0.62rem;
+        font-weight: 600;
+        line-height: 1.15;
+        text-align: center;
+        white-space: normal;
+        color: var(--c-text-muted);
+        min-width: 0;
+    }
+
+    body.glass.admin-page .monitor-tab-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    body.glass.admin-page .monitor-tab-btn.active {
+        background: rgba(var(--c-primary-rgb), 0.14);
+        color: var(--c-primary);
+        box-shadow: inset 0 0 0 1px rgba(var(--c-primary-rgb), 0.28);
+    }
+
+    /* ---- the active tab's card ------------------------------------------------------------------------------ */
+    body.glass.admin-page .monitor-tab-panel {
+        border-radius: 20px;
+        scroll-margin-top: 132px;   /* below the pinned header + tab bar when a pager jumps back to the top */
+    }
+
+    body.glass.admin-page .tab-panel-header {
+        padding: 0.7rem 0.85rem 0.7rem 1rem;
+        gap: 0.5rem;
+        border-bottom-color: rgba(var(--c-primary-rgb), 0.12);
+    }
+
+    body.glass.admin-page .tab-panel-title {
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+    }
+
+    body.glass.admin-page .header-controls {
+        min-width: 0;
+        gap: 0.4rem;
+    }
+
+    body.glass.admin-page .header-controls .btn-icon {
+        width: 36px;
+        height: 36px;
+        flex: none;
+        border-radius: 12px;
+    }
+
+    body.glass.admin-page .header-controls .search-box {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    body.glass.admin-page .header-controls .search-box input {
+        width: 100%;
+        min-width: 0;
+        height: 36px;
+        font-size: 0.8rem;
+        border-radius: 12px;
+    }
+
+    body.glass.admin-page .tab-panel-body {
+        padding: 0.75rem;
+    }
+
+    /* ---- charts: no 4rem air above and below, and shorter than the desktop 350px ------------------------------ */
+    body.glass.admin-page #activityTimeChart,
+    body.glass.admin-page #actionTypesChart {
+        margin: 0;
+    }
+
+    body.glass.admin-page .graph-container {
+        gap: 0.7rem;
+    }
+
+    body.glass.admin-page .graph-item {
+        padding: 0.8rem 0.6rem 0.6rem;
+        border-radius: 16px;
+        align-items: stretch;
+        background: rgba(var(--c-primary-rgb), 0.035);
+        border-color: rgba(var(--c-primary-rgb), 0.14);
+    }
+
+    body.glass.admin-page .graph-title {
+        margin: 0 0 0.4rem 0.4rem;
+        font-size: 0.68rem;
+        letter-spacing: 0.08em;
+        color: var(--c-text-muted);
+    }
+
+    /* admin-dashboard.css clips everything in a chart card; that cut off the second row of the legend */
+    body.glass.admin-page .graph-item,
+    body.glass.admin-page .graph-item > div,
+    body.glass.admin-page .graph-item > div > div,
+    body.glass.admin-page .graph-item .apexcharts-canvas {
+        overflow: visible !important;
+    }
+
+    body.glass.admin-page #actionTypesChart {
+        flex: none;
+        height: auto;
+        min-height: 0;
+    }
+
+    body.glass.admin-page .chart-legend-container {
+        margin-top: 0.25rem;
+    }
+
+    /* ---- Access Control: two stacked sections, tables become lists of cards ------------------------------------ */
+    body.glass.admin-page .access-control-grid {
+        grid-template-columns: 1fr;
+        gap: 0.9rem;
+        height: auto;
+    }
+
+    body.glass.admin-page .panel-section {
+        padding: 0.8rem;
+        border-radius: 16px;
+        background: rgba(var(--c-primary-rgb), 0.035);
+        border: 1px solid rgba(var(--c-primary-rgb), 0.14);
+    }
+
+    body.glass.admin-page .panel-section-header {
+        min-height: 0;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.6rem;
+        margin-bottom: 0.7rem;
+    }
+
+    body.glass.admin-page .panel-section-title {
+        font-size: 0.74rem;
+        letter-spacing: 0.08em;
+    }
+
+    body.glass.admin-page .block-ip-form,
+    body.glass.admin-page .block-ip-form.inline-form {
+        flex-direction: row;
+        gap: 0.45rem;
+        padding: 0;
+    }
+
+    body.glass.admin-page .block-ip-form.inline-form input {
+        flex: 1 1 auto;
+        width: auto;
+        min-height: 40px;
+        border-radius: 12px;
+        font-size: 0.85rem;
+    }
+
+    body.glass.admin-page .block-ip-form.inline-form .btn {
+        flex: none;
+        width: auto;
+        min-height: 40px;
+        padding: 0 0.85rem;
+        border-radius: 12px;
+        font-size: 0.78rem;
+    }
+
+    /* shared card-list treatment for the three tables */
+    body.glass.admin-page .table-wrapper {
+        margin: 0;
+        padding: 0;
+        overflow: visible;
+        border: none;
+        background: none;
+    }
+
+    body.glass.admin-page .table-wrapper table,
+    body.glass.admin-page .table-wrapper tbody {
+        display: block;
+        width: 100%;
+        min-width: 0;
+    }
+
+    body.glass.admin-page .table-wrapper thead {
+        display: none;
+    }
+
+    body.glass.admin-page .table-wrapper tbody {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+    }
+
+    body.glass.admin-page .table-wrapper tbody tr {
+        display: grid;
+        height: auto;
+        min-height: 0;
+        align-items: center;
+        gap: 0.2rem 0.6rem;
+        padding: 0.65rem 0.75rem;
+        border: 1px solid var(--glass-line);
+        border-radius: 14px;
+        background: var(--glass-bg-soft);
+    }
+
+    body.glass.admin-page .table-wrapper td {
+        display: block;
+        width: auto !important;
+        height: auto;
+        padding: 0 !important;
+        border: none;
+        text-align: left;
+        min-width: 0;
+        font-size: 0.8rem;
+    }
+
+    body.glass.admin-page .table-wrapper code {
+        font-size: 0.78rem;
+        overflow-wrap: anywhere;
+    }
+
+    body.glass.admin-page .table-wrapper tr.empty-row {
+        display: block;
+        padding: 1.4rem 0.75rem;
+        text-align: center;
+        border-style: dashed;
+        background: none;
+        color: var(--c-text-muted);
+    }
+
+    body.glass.admin-page .table-wrapper tr.empty-row td {
+        text-align: center !important;
+        font-size: 0.8rem;
+        color: var(--c-text-muted);
+        font-family: inherit;
+    }
+
+    /* connected clients: ip over "since", Block button on the right */
+    body.glass.admin-page .clients-table tbody tr:not(.empty-row) {
+        grid-template-columns: 1fr auto;
+        grid-template-areas: "ip act" "since act";
+    }
+
+    body.glass.admin-page .clients-table td:nth-child(1) { grid-area: ip; }
+    body.glass.admin-page .clients-table td:nth-child(2) { grid-area: since; color: var(--c-text-muted); font-size: 0.72rem; }
+    body.glass.admin-page .clients-table td:nth-child(3) { grid-area: act; }
+
+    /* blocked IPs: ip left, Unblock right */
+    body.glass.admin-page .blocklist-table tbody tr:not(.empty-row) {
+        grid-template-columns: 1fr auto;
+    }
+
+    body.glass.admin-page .clients-table .btn-sm,
+    body.glass.admin-page .blocklist-table .btn-sm {
+        min-height: 34px;
+        padding: 0 0.85rem;
+        border-radius: 999px;
+        font-size: 0.74rem;
+    }
+
+    /* recent activity: action badge + time on top, ip, then the details as a small code block */
+    body.glass.admin-page .action-log-table tbody tr:not(.empty-row) {
+        grid-template-columns: 1fr auto;
+        grid-template-areas: "act time" "ip ip" "det det";
+        row-gap: 0.35rem;
+    }
+
+    body.glass.admin-page .action-log-table td:nth-child(1) {
+        grid-area: time;
+        justify-self: end;
+        color: var(--c-text-muted);
+    }
+
+    body.glass.admin-page .action-log-table td:nth-child(1) code {
+        font-size: 0.66rem;
+        background: none;
+        padding: 0;
+        color: inherit;
+    }
+
+    body.glass.admin-page .action-log-table td:nth-child(2) { grid-area: ip; }
+    body.glass.admin-page .action-log-table td:nth-child(3) { grid-area: act; justify-self: start; }
+
+    body.glass.admin-page .action-log-table td:nth-child(4) {
+        grid-area: det;
+        max-width: none !important;
+        overflow: hidden !important;
+        text-align: left !important;
+    }
+
+    body.glass.admin-page .action-log-table td:nth-child(4) code {
+        display: block;
+        max-height: 4.6em;
+        overflow: auto;
+        padding: 0.4rem 0.55rem;
+        border-radius: 9px;
+        background: rgba(var(--c-primary-rgb), 0.06);
+        font-size: 0.68rem !important;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+    body.glass.admin-page .pagination-footer {
+        padding: 0.75rem 0 0;
+        border-top: none;
+    }
+
+    body.glass.admin-page .pagination-footer .btn {
+        width: auto;
+        flex: none;
+        min-height: 40px;
+        padding: 0 0.9rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+    }
+
+    /* ---- History: message cards ------------------------------------------------------------------------------- */
+    body.glass.admin-page .buffer-history-list {
+        gap: 0.55rem;
+    }
+
+    body.glass.admin-page .buffer-msg-card {
+        padding: 0.75rem 0.8rem;
+        border-radius: 14px;
+        border-color: var(--glass-line);
+        background: var(--glass-bg-soft);
+    }
+
+    body.glass.admin-page .buffer-msg-header {
+        gap: 0.5rem;
+    }
+
+    body.glass.admin-page .buffer-msg-meta {
+        flex-wrap: wrap;
+        gap: 0.15rem 0.6rem;
+        min-width: 0;
+        font-size: 0.7rem;
+    }
+
+    body.glass.admin-page .buffer-msg-actions .btn-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 11px;
+    }
+
+    body.glass.admin-page .buffer-msg-text {
+        font-size: 0.82rem;
+        line-height: 1.5;
+    }
+
+    /* ---- bottom bar: the same floating glass pill as the main app ---------------------------------------------- */
+    body.glass.admin-page .admin-sidebar {
+        left: 12px;
+        right: 12px;
+        bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+        width: auto;
+        padding: 6px;
+        gap: 2px;
+        border: 1px solid var(--glass-edge, var(--c-border));
+        border-radius: 24px;
+        background: color-mix(in srgb, var(--c-surface) 82%, transparent);
+        -webkit-backdrop-filter: blur(18px) saturate(160%);
+        backdrop-filter: blur(18px) saturate(160%);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+        overflow: visible;
+    }
+
+    html.dark body.glass.admin-page .admin-sidebar {
+        background: rgba(20, 20, 24, 0.82);
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    body.glass.admin-page .sidebar-nav ul {
+        gap: 2px;
+        margin: 0;
+        padding: 0;
+    }
+
+    body.glass.admin-page .sidebar-nav a {
+        padding: 0.45rem 0.25rem 0.35rem;
+        border-radius: 18px;
+        gap: 0.15rem;
+        color: var(--c-text-muted);
+    }
+
+    body.glass.admin-page .sidebar-nav a.active {
+        color: var(--c-primary);
+        background: rgba(var(--c-primary-rgb), 0.14);
+    }
+
+    body.glass.admin-page .nav-icon {
+        width: 26px;
+        height: 26px;
+        min-width: 26px;
+        opacity: 1;
+    }
+
+    body.glass.admin-page .nav-text {
+        font-size: 0.65rem;
+        opacity: 1;
+        color: inherit;
+    }
+
+    body.glass.admin-page .sidebar-nav a.active .nav-text,
+    body.glass.admin-page .sidebar-nav a.active .nav-icon svg {
+        color: var(--c-primary);
+    }
+
+    /* the toast sits above the pill */
+    body.glass.admin-page .toast-notification {
+        bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+    }
+}
+
+/* =====================================================================================================================
+   NOTES (phones) - a list of notes, and a full-screen editor that opens over it
+   List: one glass card, the page scrolls as one piece (like the dashboard).
+   Editor: nothing but the note - the app header and the bottom bar are hidden - with the title bar on top, the
+   formatting bar at the bottom where the thumbs are (and above the keyboard), and "Saved" as a small floating chip.
+   ===================================================================================================================== */
+@media (max-width: 768px) {
+
+    html:has(.notes-container) {
+        height: auto;
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    body.glass.admin-page:has(.notes-container) {
+        height: auto;
+        min-height: 100vh;
+        overflow: visible;
+    }
+
+    body.glass.admin-page:has(.notes-container) .admin-main-container,
+    body.glass.admin-page:has(.notes-container) .admin-content {
+        height: auto;
+        overflow: visible;
+    }
+
+    body.glass.admin-page .notes-container {
+        display: block;
+        height: auto;
+        overflow: visible;
+    }
+
+    /* ---- the list ---------------------------------------------------------------------------------------------- */
+    body.glass.admin-page .notes-sidebar {
+        position: relative;
+        inset: auto;
+        left: auto;
+        width: auto;
+        height: auto;
+        min-height: calc(100vh - 190px);
+        border-radius: 20px;
+        border: 1px solid var(--glass-edge);
+        background: var(--glass-bg);
+        box-shadow: var(--glass-shadow);
+        overflow: hidden;
+    }
+
+    body.glass.admin-page .notes-sidebar .sidebar-header {
+        padding: 0.8rem 0.85rem 0.4rem 1rem;
+        border-bottom: none;
+    }
+
+    body.glass.admin-page .notes-sidebar .sidebar-header h3 {
+        font-size: 1.15rem;
+        letter-spacing: -0.01em;
+    }
+
+    body.glass.admin-page .notes-sidebar .sidebar-actions .btn-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+    }
+
+    body.glass.admin-page .notes-sidebar .search-container {
+        padding: 0.3rem 0.85rem 0.45rem;
+        border-bottom: none;
+    }
+
+    body.glass.admin-page .notes-sidebar .search-input {
+        min-height: 42px;
+        border-radius: 14px;
+    }
+
+    body.glass.admin-page .notes-sidebar .filter-container {
+        padding: 0 0.85rem 0.6rem;
+        border-bottom: 1px solid var(--glass-line);
+    }
+
+    body.glass.admin-page .notes-sidebar .filter-select {
+        border-radius: 12px;
+    }
+
+    body.glass.admin-page .notes-sidebar .notes-list {
+        flex: none;
+        overflow: visible;
+        padding: 0.5rem 0.55rem 0.75rem;
+    }
+
+    body.glass.admin-page .notes-list .note-item {
+        min-height: 46px;
+        border-radius: 12px;
+        margin-bottom: 0.15rem;
+    }
+
+    body.glass.admin-page .notes-list .note-item:not(.folder):active {
+        background: rgba(var(--c-primary-rgb), 0.12);
+    }
+
+    /* ---- the editor: full screen over the list ------------------------------------------------------------------ */
+    /* the list stays in the page (so it is where you left it when you come back); the editor just covers it */
+    body.glass.admin-page .notes-container.mobile-editor-active .notes-sidebar {
+        display: flex !important;
+    }
+
+    html:has(.notes-container.mobile-editor-active),
+    body.glass.admin-page:has(.notes-container.mobile-editor-active) {
+        overflow: hidden;
+    }
+
+    body.glass.admin-page:has(.notes-container.mobile-editor-active) .app-header,
+    body.glass.admin-page:has(.notes-container.mobile-editor-active) .admin-sidebar {
+        display: none;
+    }
+
+    body.glass.admin-page .notes-container.mobile-editor-active .editor-main {
+        position: fixed;
+        inset: 0;
+        height: 100vh;
+        height: 100dvh;
+        z-index: 300;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        background: var(--c-surface);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        padding-top: env(safe-area-inset-top, 0px);
+    }
+
+    html.dark body.glass.admin-page .notes-container.mobile-editor-active .editor-main {
+        background: var(--c-bg, #000);
+    }
+
+    body.glass.admin-page .editor-container {
+        position: relative;
+    }
+
+    /* title bar: back, title, preview, Save, more */
+    body.glass.admin-page .editor-header {
+        gap: 0.2rem;
+        padding: 0.5rem 0.6rem 0.5rem 0.4rem;
+        min-height: 56px;
+        border-bottom: 1px solid var(--glass-line);
+        background: var(--c-surface);
+    }
+
+    body.glass.admin-page .editor-header .note-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        text-overflow: ellipsis;
+        padding: 0.35rem 0.4rem;
+        border: none;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    body.glass.admin-page .editor-header .editor-actions {
+        gap: 0.2rem;
+        flex: none;
+        align-items: center;
+    }
+
+    /* the eye (reading view) is worth one tap, so it comes out of the menu */
+    body.glass.admin-page .editor-actions #previewBtn {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        min-height: 38px;
+        padding: 0;
+        border-radius: 12px;
+    }
+
+    body.glass.admin-page .editor-actions #previewBtn svg {
+        width: 19px;
+        height: 19px;
+    }
+
+    body.glass.admin-page .editor-actions #saveBtn {
+        height: 36px;
+        min-height: 36px;
+        padding: 0 1rem;
+        border-radius: 999px;
+        background: var(--c-primary);
+        border: 1px solid var(--c-primary);
+        color: var(--c-primary-text, #fff);
+        font-size: 0.85rem;
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(var(--c-primary-rgb), 0.3);
+    }
+
+    body.glass.admin-page .editor-actions #saveBtn:disabled {
+        opacity: 0.7;
+    }
+
+    body.glass.admin-page .mobile-editor-back,
+    body.glass.admin-page .mobile-editor-more {
+        width: 38px;
+        height: 38px;
+        min-width: 38px;
+        border-radius: 12px;
+    }
+
+    /* the "..." menu */
+    body.glass.admin-page .mobile-more-menu {
+        top: 54px;
+        right: 0.6rem;
+        min-width: 200px;
+        border-radius: 16px;
+        padding: 0.4rem;
+        background: var(--glass-bg-strong);
+        border-color: var(--glass-edge);
+        -webkit-backdrop-filter: var(--glass-blur-float);
+        backdrop-filter: var(--glass-blur-float);
+        box-shadow: var(--glass-shadow-strong);
+    }
+
+    body.glass.admin-page .mobile-more-item {
+        min-height: 46px;
+        border-radius: 11px;
+        padding: 0.7rem 0.9rem;
+    }
+
+    /* text area + the bar and the chip */
+    #editor.md-shell {
+        position: relative;
+    }
+
+    .md-cm .CodeMirror-lines {
+        padding: 0.8rem 1rem 1.2rem;
+    }
+
+    .md-cm .CodeMirror-scroll {
+        padding-bottom: 3rem;
+    }
+
+    .md-reading {
+        padding: 0.9rem 1rem 3rem;
+    }
+
+    /* formatting bar moves to the bottom: big, swipeable, one tap each */
+    .md-fmt {
+        order: 3;
+        flex: none;
+        gap: 4px;
+        padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+        border-bottom: none;
+        border-top: 1px solid var(--glass-line);
+        background: var(--c-surface);
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .md-fmt::-webkit-scrollbar {
+        display: none;
+    }
+
+    .md-fmt-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+    }
+
+    .md-fmt-btn svg {
+        width: 19px;
+        height: 19px;
+    }
+
+    .md-fmt-btn[data-tool="wiki"] {
+        width: auto;
+        padding: 0 0.7rem;
+    }
+
+    /* "Saved" / "Unsaved": a small chip floating over the bottom corner of the text, not a whole row */
+    .md-status {
+        position: absolute;
+        right: 0.7rem;
+        bottom: 62px;
+        z-index: 5;
+        padding: 0.28rem 0.7rem;
+        border: 1px solid var(--glass-edge);
+        border-radius: 999px;
+        background: var(--glass-bg-strong);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+        pointer-events: none;
+        font-size: 0.7rem;
+    }
+
+    #editor.md-shell:has(.md-fmt[hidden]) .md-status {
+        bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
+    }
+}
+
+/* notes dialogs (new note / folder picker / rename / confirm / unsaved changes) become bottom sheets on phones */
+@media (max-width: 768px) {
+
+    body.glass.admin-page .notes-modal-overlay {
+        align-items: flex-end;
+    }
+
+    body.glass.admin-page .notes-modal {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 1.2rem 1.1rem calc(1.1rem + env(safe-area-inset-bottom, 0px));
+        border-radius: 24px 24px 0 0;
+        border-bottom: none;
+        max-height: 88vh;
+        max-height: 88dvh;
+        overflow-y: auto;
+        background: var(--c-surface);
+        transform: translateY(40px);
+    }
+
+    body.glass.admin-page .notes-modal-overlay.visible .notes-modal {
+        transform: translateY(0);
+    }
+
+    /* a grab handle, so it reads as a sheet */
+    body.glass.admin-page .notes-modal::before {
+        content: "";
+        display: block;
+        width: 38px;
+        height: 4px;
+        margin: -0.5rem auto 0.9rem;
+        border-radius: 999px;
+        background: var(--c-border);
+    }
+
+    body.glass.admin-page .notes-modal-hint {
+        display: none;
+    }
+
+    body.glass.admin-page .folder-picker-grid {
+        max-height: 58vh;
+        margin-bottom: 0.4rem;
+    }
+
+    body.glass.admin-page .folder-picker-item {
+        min-height: 50px;
+        border-radius: 14px;
+    }
+
+    body.glass.admin-page .notes-modal-input {
+        min-height: 48px;
+        border-radius: 14px;
+        font-size: 16px;   /* below 16px the browser zooms the page when the field is focused */
+    }
+
+    /* the "..." menu: solid, so the text behind it can't show through */
+    body.glass.admin-page .mobile-more-menu {
+        background: var(--c-surface);
+    }
+}

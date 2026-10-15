@@ -40,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentNote = null;
     let notes = [];
     let selectedNotes = new Set();
-    let draggedNote = null;
     let hasUnsavedChanges = false;
     let originalContent = '';
 
@@ -237,7 +236,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Folder picker modal
-    function showFolderPickerModal(title, message, folders) {
+    // `folders` are folder paths ("A", "A/B"); nested ones are indented. `rootLabel` names the top-level choice.
+    function showFolderPickerModal(title, message, folders, rootLabel = 'No Folder (root)') {
         return new Promise((resolve) => {
             folderPickerTitle.textContent = title;
             folderPickerMessage.textContent = message;
@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
                     <polyline points="9 22 9 12 15 12 15 22"/>
                 </svg>
-                <span>No Folder (root)</span>
+                <span>${escapeHtml(rootLabel)}</span>
             `;
             rootBtn.addEventListener('click', () => { cleanup(); resolve(''); });
             folderPickerList.appendChild(rootBtn);
@@ -260,12 +260,14 @@ document.addEventListener('DOMContentLoaded', () => {
             folders.forEach(name => {
                 const btn = document.createElement('button');
                 btn.className = 'folder-picker-item';
+                btn.style.paddingLeft = `${1 + (name.split('/').length - 1) * 1.25}rem`;
                 btn.innerHTML = `
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                     </svg>
-                    <span>${escapeHtml(name)}</span>
+                    <span>${escapeHtml(name.split('/').pop())}</span>
                 `;
+                btn.title = name;
                 btn.addEventListener('click', () => { cleanup(); resolve(name); });
                 folderPickerList.appendChild(btn);
             });
@@ -414,7 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Check if we should show this folder based on filter
                     if (currentFilter !== 'all' && item.name !== currentFilter && level === 0) return;
 
-                    html += `<div class="note-item folder" data-path="${item.path}" style="--lvl: ${level}">
+                    html += `<div class="note-item folder" data-path="${item.path}" style="--lvl: ${level}" draggable="true">
                         <svg class="folder-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                         <svg class="folder-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                         <span class="folder-name">${item.name}</span>
@@ -534,6 +536,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Switch to editor view on mobile
             showMobileEditor();
+            // the editor pane is only displayed now (on a phone it was hidden until the line above), so measure again
+            editor.refresh();
         } catch (error) {
             alert('Failed to load note');
         }
@@ -762,6 +766,7 @@ document.addEventListener('DOMContentLoaded', () => {
         download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
         pdf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15h6"/><path d="M9 11h6"/></svg>',
         trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
+        move: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><path d="M8 14h8"/><polyline points="13 11 16 14 13 17"/></svg>',
         expand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>',
         collapse: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 11 12 6 17 11"/><polyline points="7 18 12 13 17 18"/></svg>',
         refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>'
@@ -916,6 +921,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctxItem('Open', ICONS.open, () => loadNote(path)),
             ctxItem('Rename…', ICONS.rename, () => renameNote(path)),
             ctxItem('Duplicate…', ICONS.duplicate, () => duplicateNote(path)),
+            ctxItem('Move to…', ICONS.move, () => promptMoveItems([path])),
             ctxItem('Download as Markdown', ICONS.download, () => downloadNote(path)),
             ctxItem('Export as PDF', ICONS.pdf, () => exportNoteToPdf(path)),
             ctxSeparator(),
@@ -932,6 +938,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctxSeparator(),
             ctxItem(closed ? 'Open folder' : 'Close folder', closed ? ICONS.expand : ICONS.collapse, () => toggleFolder(path)),
             ctxItem('Rename…', ICONS.rename, () => renameFolder(path)),
+            ctxItem('Move to…', ICONS.move, () => promptMoveItems([path])),
             ctxSeparator(),
             ctxItem('Delete folder', ICONS.trash, () => deleteFolder(path), true)
         ];
@@ -940,6 +947,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function buildBatchMenu(count) {
         return [
             ctxHeading(`${count} notes selected`),
+            ctxItem('Move to…', ICONS.move, () => promptMoveItems(Array.from(selectedNotes))),
             ctxItem('Download as Markdown', ICONS.download, () => batchDownload()),
             ctxItem('Export as PDF', ICONS.pdf, () => batchExportPdf()),
             ctxSeparator(),
@@ -1001,121 +1009,164 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 
-    // Drag and drop functionality
-    let draggedItem = null;
+    // ===== Moving notes and folders =====
+    // Used by "Move to…" (right-click menu, selection bar) and by drag and drop.
+    function parentOf(path) {
+        return path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+    }
+
+    function itemLabel(path) {
+        return path.split('/').pop().replace(/\.md$/i, '');
+    }
+
+    // can `path` go into folder `dest`? Not if it is already there, or if it is a folder and `dest` is inside it
+    function canMoveInto(path, dest) {
+        return parentOf(path) !== dest && dest !== path && !dest.startsWith(path + '/');
+    }
+
+    // what actually has to move: drops no-ops, and items that already travel inside a folder that is moving too
+    function movablePaths(paths, dest) {
+        const valid = paths.filter((p) => canMoveInto(p, dest));
+        return valid.filter((p) => !valid.some((q) => q !== p && p.startsWith(q + '/')));
+    }
+
+    function describeMove(paths, dest) {
+        const what = paths.length === 1 ? `"${itemLabel(paths[0])}"` : `${paths.length} items`;
+        return `Move ${what} to ${dest ? `"${dest}"` : 'the top level'}?`;
+    }
+
+    // every folder in the tree, in tree order, minus the ones that can't take any of `paths`
+    function folderChoices(paths) {
+        const out = [];
+        (function walk(items) {
+            const sorted = [...(items || [])].filter((i) => i.type === 'folder').sort((a, b) => a.name.localeCompare(b.name));
+            for (const it of sorted) {
+                if (!paths.some((p) => it.path === p || it.path.startsWith(p + '/'))) out.push(it.path);
+                walk(it.children);
+            }
+        })(rootTree);
+        return out;
+    }
+
+    async function promptMoveItems(paths) {
+        if (!paths.length) return;
+        const folders = folderChoices(paths);
+        const what = paths.length === 1 ? `"${itemLabel(paths[0])}"` : `${paths.length} items`;
+        const dest = await showFolderPickerModal('Move to…', `Choose where to move ${what}:`, folders, 'Top level (no folder)');
+        if (dest === null) return;   // cancelled
+        await moveItems(paths, dest);
+    }
+
+    async function moveItems(paths, dest) {
+        const toMove = movablePaths(paths, dest);
+        if (!toMove.length) return;
+
+        const moved = new Map();   // old path -> new path
+        const failures = [];
+        for (const source of toMove) {
+            try {
+                const res = await fetch('/admin/api/notes/move', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source_path: source, dest_path: dest })   // dest is the target *folder*
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.success === false) throw new Error(data.error || 'Move failed');
+                const name = source.split('/').pop();
+                moved.set(source, dest ? `${dest}/${name}` : name);
+            } catch (error) {
+                failures.push(`${itemLabel(source)}: ${error.message}`);
+            }
+        }
+
+        if (moved.size) {
+            // the open note and the closed/open folders follow whatever moved
+            const follow = (p) => {
+                for (const [from, to] of moved) {
+                    if (p === from || p.startsWith(from + '/')) return to + p.slice(from.length);
+                }
+                return p;
+            };
+            collapsedFolders = new Set(Array.from(collapsedFolders).map(follow));
+            if (currentNote) currentNote = follow(currentNote);
+            if (dest) {
+                // show the result: open the folder it went into (and the ones around it)
+                const parts = dest.split('/');
+                for (let i = 1; i <= parts.length; i++) collapsedFolders.delete(parts.slice(0, i).join('/'));
+            }
+            saveCollapsed();
+            clearSelection();   // the selected paths are stale now
+            await loadNotes();
+            document.querySelectorAll('.note-item').forEach((item) => item.classList.toggle('active', item.dataset.path === currentNote));
+        }
+        if (failures.length) alert('Could not move:\n' + failures.join('\n'));
+    }
+
+    // ----- drag and drop -----
+    // Drop on a folder to move into it, on a note to move next to it, on empty space to move to the top level.
+    // Everything the drop needs is captured up front: `dragend` fires before an async drop handler gets its answer.
+    let draggedPaths = null;
+
+    function dropFolderFor(e) {
+        const row = e.target.closest ? e.target.closest('.note-item') : null;
+        if (!row || !row.dataset.path) return '';
+        return row.classList.contains('folder') ? row.dataset.path : parentOf(row.dataset.path);
+    }
+
+    function clearDropHighlight() {
+        notesList.classList.remove('drop-zone-active');
+        notesList.querySelectorAll('.drop-target').forEach((el) => el.classList.remove('drop-target'));
+    }
 
     notesList.addEventListener('dragstart', (e) => {
-        const item = e.target.closest('.note-item');
-        if (item && item.dataset.type === 'file') {
-            draggedItem = item.dataset.path;
-            item.style.opacity = '0.5';
-            e.dataTransfer.effectAllowed = 'move';
-        }
+        const row = e.target.closest ? e.target.closest('.note-item') : null;
+        if (!row || !row.dataset.path) return;
+        const path = row.dataset.path;
+        // dragging one of several ticked notes takes all of them
+        if (!row.classList.contains('folder') && selectedNotes.size > 1 && selectedNotes.has(path)) draggedPaths = Array.from(selectedNotes);
+        else draggedPaths = [path];
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', draggedPaths.join('\n'));   // Firefox won't start a drag without data
+        row.classList.add('dragging');
+        closeContextMenu();
     });
 
-    notesList.addEventListener('dragend', (e) => {
-        const item = e.target.closest('.note-item');
-        if (item) {
-            item.style.opacity = '1';
-        }
-        draggedItem = null;
-        // Remove any drop zone highlights
-        notesList.classList.remove('drop-zone-active');
-        document.querySelectorAll('.note-item.folder').forEach(f => f.style.background = '');
+    notesList.addEventListener('dragend', () => {
+        draggedPaths = null;
+        clearDropHighlight();
+        notesList.querySelectorAll('.dragging').forEach((el) => el.classList.remove('dragging'));
     });
 
     notesList.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        const item = e.target.closest('.note-item');
-
-        // Highlight folder when hovering over it
-        if (item && item.classList.contains('folder')) {
-            item.style.background = 'rgba(220, 38, 38, 0.1)';
-        } else if (draggedItem && draggedItem.includes('/')) {
-            // If file is from a folder and hovering on empty space, show root drop zone
-            notesList.classList.add('drop-zone-active');
+        if (!draggedPaths) return;
+        const dest = dropFolderFor(e);
+        clearDropHighlight();
+        if (!movablePaths(draggedPaths, dest).length) {
+            e.dataTransfer.dropEffect = 'none';
+            return;   // no preventDefault: not a drop target
         }
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const folderRow = dest ? Array.from(notesList.querySelectorAll('.note-item.folder')).find((r) => r.dataset.path === dest) : null;
+        if (folderRow) folderRow.classList.add('drop-target');
+        else notesList.classList.add('drop-zone-active');
     });
 
     notesList.addEventListener('dragleave', (e) => {
-        const item = e.target.closest('.note-item');
-        if (item && item.classList.contains('folder')) {
-            item.style.background = '';
-        }
-        // Check if leaving the notes list entirely
-        if (e.target === notesList || !notesList.contains(e.relatedTarget)) {
-            notesList.classList.remove('drop-zone-active');
-        }
+        if (!notesList.contains(e.relatedTarget)) clearDropHighlight();
     });
 
     notesList.addEventListener('drop', async (e) => {
+        if (!draggedPaths) return;
         e.preventDefault();
-        const item = e.target.closest('.note-item');
+        clearDropHighlight();
+        const paths = draggedPaths.slice();
+        const dest = dropFolderFor(e);
+        const toMove = movablePaths(paths, dest);
+        if (!toMove.length) return;
 
-        // Clear all highlights
-        notesList.classList.remove('drop-zone-active');
-        document.querySelectorAll('.note-item.folder').forEach(f => f.style.background = '');
-
-        if (!draggedItem) return;
-
-        // Determine target location
-        let targetPath = '';
-        let targetLabel = 'root';
-
-        if (item && item.classList.contains('folder')) {
-            // Dropping into a folder
-            targetPath = item.dataset.path;
-            targetLabel = targetPath;
-        } else {
-            // Dropping to root level (empty space or on another file)
-            // Only proceed if the dragged item is from a folder
-            const currentFolder = draggedItem.includes('/') ? draggedItem.substring(0, draggedItem.lastIndexOf('/')) : '';
-            if (!currentFolder) {
-                // File is already at root, can't move to root
-                return;
-            }
-            targetPath = '';
-            targetLabel = 'root';
-        }
-
-        const fileName = draggedItem.split('/').pop();
-        const currentFolder = draggedItem.includes('/') ? draggedItem.substring(0, draggedItem.lastIndexOf('/')) : '';
-
-        // Check if trying to move to same location
-        if (targetPath === currentFolder) {
-            return; // Already in target folder
-        }
-
-        const newPath = targetPath ? `${targetPath}/${fileName}` : fileName;
-
-        const confirmed = await showConfirmModal(
-            'Move Note',
-            `Move "${fileName}" to ${targetLabel}?`,
-            { confirmText: 'Move Here', cancelText: 'Cancel' }
-        );
-        if (confirmed) {
-            try {
-                const response = await fetch('/admin/api/notes/move', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        source_path: draggedItem,
-                        dest_path: targetPath  // Send folder path, not full path with filename
-                    })
-                });
-                if (!response.ok) {
-                    const err = await response.json();
-                    throw new Error(err.error || 'Move failed');
-                }
-                await loadNotes();
-                if (draggedItem === currentNote) {
-                    currentNote = newPath;
-                    await loadNote(newPath);
-                }
-            } catch (error) {
-                alert('Failed to move file: ' + error.message);
-            }
-        }
+        const confirmed = await showConfirmModal('Move', describeMove(toMove, dest), { confirmText: 'Move Here', cancelText: 'Cancel' });
+        if (confirmed) await moveItems(toMove, dest);
     });
 
     // Multi-select functionality
@@ -1141,6 +1192,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 batchDiv.className = 'batch-actions';
                 batchDiv.innerHTML = `
                     <span class="batch-count">${count} selected</span>
+                    <button id="batchMove" class="btn btn-sm" title="Move selected notes to a folder">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                            <path d="M8 14h8"/><polyline points="13 11 16 14 13 17"/>
+                        </svg>
+                    </button>
                     <button id="batchDownload" class="btn btn-sm" title="Download selected notes">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -1166,6 +1223,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
                 document.querySelector('.notes-sidebar').insertBefore(batchDiv, notesList);
 
+                document.getElementById('batchMove').addEventListener('click', () => promptMoveItems(Array.from(selectedNotes)));
                 document.getElementById('batchDownload').addEventListener('click', batchDownload);
                 document.getElementById('batchExportPdf').addEventListener('click', batchExportPdf);
                 document.getElementById('batchDelete').addEventListener('click', batchDelete);
@@ -1329,6 +1387,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showMobileEditor() {
         if (isMobile() && notesContainer) {
+            // one history entry per open note, so the phone's back button / gesture closes the note (back to the list)
+            // instead of leaving the notes page
+            if (!notesContainer.classList.contains('mobile-editor-active')) {
+                try { history.pushState({ noteEditor: true }, ''); } catch (e) { /* history unavailable: back button just leaves */ }
+            }
             notesContainer.classList.add('mobile-editor-active');
         }
     }
@@ -1343,9 +1406,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mobileEditorBack) {
         mobileEditorBack.addEventListener('click', (e) => {
             e.preventDefault();
-            hideMobileEditor();
+            if (history.state && history.state.noteEditor) history.back();   // popstate below closes it
+            else hideMobileEditor();
         });
     }
+
+    window.addEventListener('popstate', () => {
+        if (notesContainer && notesContainer.classList.contains('mobile-editor-active')) hideMobileEditor();
+    });
 
     // Three-dot menu toggle
     if (mobileMoreBtn && mobileMoreMenu) {

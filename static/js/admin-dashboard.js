@@ -30,8 +30,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const blockedCountEl = document.getElementById('blocked-count');
     const totalLogsEl = document.getElementById('total-logs');
     const recentActivityEl = document.getElementById('recent-activity');
-    const loadMoreBtn = document.getElementById('load-more-logs-btn');
-    const logFooter = document.getElementById('log-footer');
+    // The pager (Prev / Page x of y / Next) lives in dashboard.html, but if the server is still serving an older cached copy
+    // of that template, build it here so there is always a way to see more than the first 10.
+    const ensurePager = (id, anchorEl, isLogs) => {
+        let footer = document.getElementById(id);
+        if (footer && footer.querySelector('.page-prev') && footer.querySelector('.page-next')) return footer;
+        if (footer) footer.remove();
+        if (!anchorEl) return null;
+        footer = document.createElement('div');
+        footer.id = id;
+        footer.className = 'pagination-footer';
+        footer.style.display = 'none';
+        footer.innerHTML = '<button type="button" class="btn btn-secondary page-prev" aria-label="Previous page">&lsaquo; Prev</button>' +
+            '<span class="page-info" aria-live="polite"></span>' +
+            `<button type="button" class="btn btn-secondary page-next"${isLogs ? ' id="load-more-logs-btn"' : ''} aria-label="Next page">Next &rsaquo;</button>`;
+        anchorEl.insertAdjacentElement('afterend', footer);
+        return footer;
+    };
+    const logFooter = ensurePager('log-footer', document.querySelector('.action-log-table'), true);
+    const bufferFooter = ensurePager('buffer-footer', document.getElementById('buffer-history-list'), false);
+    const loadMoreBtn = logFooter && logFooter.querySelector('.page-next');
     const clearLogsBtn = document.querySelector('.clear-logs-btn');
     const refreshClientsBtn = document.querySelector('.refresh-clients-btn');
     const logSearchInput = document.getElementById('log-search');
@@ -41,7 +59,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- State ---
     let logOffset = 0;
-    const logLimit = 20;
+    const logLimit = 50;          // how many log rows we fetch from the server at a time
+    const PAGE_SIZE = 10;         // how many rows / messages are shown at once (Recent Activity + History)
+    let logPage = 0;
+    let logHasMore = false;       // the server may still have older logs we haven't fetched
+    let bufferPage = 0;
+    let bufferShown = [];         // the (possibly searched) history list the pager works on
     let allLogs = [];
     let filteredLogs = [];
     let bufferHistory = [];
@@ -101,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.on('client_update', () => loadClients());
             socket.on('blocklist_update', () => loadBlocklist());
             socket.on('action_log_update', () => {
-                loadLogs(true);
+                if (logPage === 0) loadLogs(true);   // on a later page, don't pull the reader back to page 1
                 loadStats();
             });
             return socket;
@@ -170,28 +193,37 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const loadLogs = async (reset = false) => {
-        if (reset) logOffset = 0;
+        if (reset) { logOffset = 0; logPage = 0; }
         const data = await apiCall(`logs?offset=${logOffset}&limit=${logLimit}`);
-        if (!data || !data.logs) return;
-        if (logOffset === 0) {
-            allLogs = data.logs;
-            filteredLogs = data.logs;
-            logBody.innerHTML = '';
-        } else {
-            allLogs = [...allLogs, ...data.logs];
-            filteredLogs = [...filteredLogs, ...data.logs];
-        }
-        renderLogs(data.logs);
+        if (!data || !data.logs) return false;
+        allLogs = logOffset === 0 ? data.logs : [...allLogs, ...data.logs];
         logOffset += logLimit;
-        logFooter.style.display = data.logs.length === logLimit ? 'flex' : 'none';
+        logHasMore = data.logs.length === logLimit;
+        applyLogFilter();
+        return true;
     };
 
-    const renderLogs = (logs) => {
-        if (logs.length === 0 && logOffset === 0) {
-            logBody.innerHTML = '<tr class="empty-row"><td colspan="4">No actions logged yet</td></tr>';
-            return;
-        }
-        logBody.innerHTML += logs.map(log => `
+    const applyLogFilter = () => {
+        const term = logSearchInput ? logSearchInput.value.trim().toLowerCase() : '';
+        filteredLogs = !term ? allLogs : allLogs.filter(log =>
+            (log.ip_address || log.ip || '').toLowerCase().includes(term) ||
+            (log.action || '').toLowerCase().includes(term) ||
+            JSON.stringify(log.details).toLowerCase().includes(term)
+        );
+        const lastPage = Math.max(0, Math.ceil(filteredLogs.length / PAGE_SIZE) - 1);
+        if (logPage > lastPage) logPage = lastPage;
+        renderLogs();
+    };
+
+    // Shows one page (PAGE_SIZE rows) of filteredLogs and updates the pager under the table.
+    const renderLogs = () => {
+        const start = logPage * PAGE_SIZE;
+        const logs = filteredLogs.slice(start, start + PAGE_SIZE);
+        if (logs.length === 0) {
+            logBody.innerHTML = '<tr class="empty-row"><td colspan="4">' +
+                (allLogs.length ? 'No matching actions' : 'No actions logged yet') + '</td></tr>';
+        } else {
+            logBody.innerHTML = logs.map(log => `
             <tr style="animation: fadeIn 0.3s ease-out;">
                 <td><code>${new Date(log.timestamp).toLocaleString('en-US', { timeZone: 'UTC' })}</code></td>
                 <td><code>${escapeHtml(log.ip_address || log.ip || 'Unknown')}</code></td>
@@ -201,7 +233,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
             </tr>
         `).join('');
+        }
+        const searching = logSearchInput && logSearchInput.value.trim() !== '';
+        const pages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
+        const moreOnServer = logHasMore && !searching;
+        updatePager(logFooter, {
+            page: logPage, pages, total: filteredLogs.length, moreOnServer,
+            hidden: filteredLogs.length <= PAGE_SIZE && !moreOnServer
+        });
     };
+
+    // after Prev / Next, bring the top of the list back into view (the pager is at the bottom of it)
+    const showTopOfList = () => {
+        const panel = document.querySelector('.monitor-tab-panel.active');
+        if (!panel) return;
+        const body = panel.querySelector('.tab-panel-body');
+        if (body) body.scrollTop = 0;
+        if (panel.getBoundingClientRect().top < 0) panel.scrollIntoView({ block: 'start' });
+    };
+
+    // Pager shared by Recent Activity and History: [Prev]  Page 2 of 5  [Next]
+    function updatePager(footer, { page, pages, total, moreOnServer, hidden }) {
+        if (!footer) return;
+        footer.style.display = hidden ? 'none' : 'flex';
+        const info = footer.querySelector('.page-info');
+        const prev = footer.querySelector('.page-prev');
+        const next = footer.querySelector('.page-next');
+        if (info) info.textContent = moreOnServer ? `Page ${page + 1}` : `Page ${page + 1} of ${pages}`;
+        if (prev) prev.disabled = page === 0;
+        if (next) next.disabled = !moreOnServer && page >= pages - 1;
+    }
 
     const getActionBadge = (action) => {
         const badges = {
@@ -239,10 +300,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await apiCall('buffer_history');
         if (!data || !data.history) return;
         bufferHistory = data.history;
-        renderBufferHistory(bufferHistory);
+        bufferPage = 0;
+        applyBufferFilter();
     };
 
-    const renderBufferHistory = (messages) => {
+    const applyBufferFilter = () => {
+        const term = bufferSearchInput ? bufferSearchInput.value.trim().toLowerCase() : '';
+        bufferShown = !term ? bufferHistory : bufferHistory.filter(msg =>
+            msg.text.toLowerCase().includes(term) || (msg.ip || '').toLowerCase().includes(term)
+        );
+        const lastPage = Math.max(0, Math.ceil(bufferShown.length / PAGE_SIZE) - 1);
+        if (bufferPage > lastPage) bufferPage = lastPage;
+        renderBufferHistory(bufferShown);
+    };
+
+    // Shows one page (PAGE_SIZE messages) of the given list and updates the pager under it.
+    const renderBufferHistory = (allMessages) => {
+        const pages = Math.max(1, Math.ceil((allMessages || []).length / PAGE_SIZE));
+        const messages = (allMessages || []).slice(bufferPage * PAGE_SIZE, bufferPage * PAGE_SIZE + PAGE_SIZE);
+        updatePager(bufferFooter, {
+            page: bufferPage, pages, total: (allMessages || []).length, moreOnServer: false,
+            hidden: (allMessages || []).length <= PAGE_SIZE
+        });
         if (!messages || messages.length === 0) {
             bufferHistoryList.innerHTML = `
                 <div class="timeline-empty">
@@ -266,6 +345,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span>${formatRelativeTime(msg.timestamp)}</span>
                     </div>
                     <div class="buffer-msg-actions">
+                        ${truncated ? `<button class="btn-icon buffer-collapse-btn" title="Collapse" data-idx="${idx}">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                        </button>` : ''}
                         <button class="btn-icon buffer-copy-btn" title="Copy message" data-idx="${idx}">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -306,24 +388,30 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        // Attach expand handlers - use index to look up full text
+        // Expand / collapse. "Show more" / "Show less" is at the bottom of the card; the collapse button in the card's
+        // header does the same from the top, and only shows while the message is expanded.
+        const setExpanded = (card, idx, expand) => {
+            const fullText = messages[idx] ? messages[idx].text : '';
+            const textEl = card.querySelector('.buffer-msg-text');
+            const toggle = card.querySelector('.buffer-msg-expand');
+            textEl.classList.toggle('expanded', expand);
+            card.classList.toggle('is-expanded', expand);
+            textEl.textContent = expand ? fullText : fullText.substring(0, 300) + '...';
+            if (toggle) toggle.textContent = expand ? 'Show less' : 'Show more';
+            // collapsing from the top: keep the card in view instead of leaving the page scrolled past it
+            if (!expand && card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: 'nearest' });
+        };
+
         bufferHistoryList.querySelectorAll('.buffer-msg-expand').forEach(btn => {
             btn.addEventListener('click', () => {
-                const idx = parseInt(btn.dataset.idx);
-                const fullText = messages[idx] ? messages[idx].text : '';
                 const card = btn.closest('.buffer-msg-card');
-                const textEl = card.querySelector('.buffer-msg-text');
-                if (textEl.classList.contains('expanded')) {
-                    textEl.classList.remove('expanded');
-                    const preview = fullText.substring(0, 300) + '...';
-                    textEl.textContent = preview;
-                    btn.textContent = 'Show more';
-                } else {
-                    textEl.classList.add('expanded');
-                    textEl.textContent = fullText;
-                    btn.textContent = 'Show less';
-                }
+                const expanded = card.querySelector('.buffer-msg-text').classList.contains('expanded');
+                setExpanded(card, parseInt(btn.dataset.idx), !expanded);
             });
+        });
+
+        bufferHistoryList.querySelectorAll('.buffer-collapse-btn').forEach(btn => {
+            btn.addEventListener('click', () => setExpanded(btn.closest('.buffer-msg-card'), parseInt(btn.dataset.idx), false));
         });
     };
 
@@ -379,9 +467,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // pagers: Recent Activity (logs may still be fetched from the server) and History (all loaded already)
     if (loadMoreBtn) {
-        loadMoreBtn.addEventListener('click', () => loadLogs(false));
+        loadMoreBtn.addEventListener('click', async () => {
+            const searching = logSearchInput && logSearchInput.value.trim() !== '';
+            if ((logPage + 1) * PAGE_SIZE >= filteredLogs.length && logHasMore && !searching) {
+                if (!(await loadLogs(false))) return;
+            }
+            if ((logPage + 1) * PAGE_SIZE < filteredLogs.length) { logPage++; renderLogs(); showTopOfList(); }
+        });
     }
+    const logPrevBtn = logFooter && logFooter.querySelector('.page-prev');
+    if (logPrevBtn) logPrevBtn.addEventListener('click', () => { if (logPage > 0) { logPage--; renderLogs(); showTopOfList(); } });
+
+    const bufferPrevBtn = bufferFooter && bufferFooter.querySelector('.page-prev');
+    const bufferNextBtn = bufferFooter && bufferFooter.querySelector('.page-next');
+    if (bufferPrevBtn) bufferPrevBtn.addEventListener('click', () => { if (bufferPage > 0) { bufferPage--; renderBufferHistory(bufferShown); showTopOfList(); } });
+    if (bufferNextBtn) bufferNextBtn.addEventListener('click', () => {
+        if ((bufferPage + 1) * PAGE_SIZE < bufferShown.length) { bufferPage++; renderBufferHistory(bufferShown); showTopOfList(); }
+    });
 
     if (clearLogsBtn) {
         clearLogsBtn.addEventListener('click', async () => {
@@ -413,35 +517,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (logSearchInput) {
-        logSearchInput.addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            if (!searchTerm) {
-                filteredLogs = allLogs;
-            } else {
-                filteredLogs = allLogs.filter(log =>
-                    log.ip_address.toLowerCase().includes(searchTerm) ||
-                    log.action.toLowerCase().includes(searchTerm) ||
-                    JSON.stringify(log.details).toLowerCase().includes(searchTerm)
-                );
-            }
-            logBody.innerHTML = '';
-            renderLogs(filteredLogs);
-        });
+        logSearchInput.addEventListener('input', () => { logPage = 0; applyLogFilter(); });
     }
 
     if (bufferSearchInput) {
-        bufferSearchInput.addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            if (!searchTerm) {
-                renderBufferHistory(bufferHistory);
-            } else {
-                const filtered = bufferHistory.filter(msg =>
-                    msg.text.toLowerCase().includes(searchTerm) ||
-                    (msg.ip || '').toLowerCase().includes(searchTerm)
-                );
-                renderBufferHistory(filtered);
-            }
-        });
+        bufferSearchInput.addEventListener('input', () => { bufferPage = 0; applyBufferFilter(); });
     }
 
     // --- Global Functions ---
@@ -583,7 +663,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 plotOptions: { pie: { donut: { size: '65%', labels: { show: false } } } },
                 stroke: { width: 2, colors: ['rgba(255, 255, 255, 0.1)'] },
                 tooltip: { theme: 'dark', y: { formatter: val => val + ' actions' } },
-                responsive: [{ breakpoint: 769, options: { chart: { height: 280 }, legend: { fontSize: '12px' } } }]
+                responsive: [{ breakpoint: 769, options: { chart: { height: 500 }, plotOptions: { pie: { donut: { size: '62%' } } }, legend: { fontSize: '11px' } } }]
             });
             actionTypesChart.render();
         }
@@ -627,7 +707,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 yaxis: { labels: { style: { colors: textColor, fontSize: '12px', fontWeight: 500 } } },
                 grid: { borderColor, strokeDashArray: 4, xaxis: { lines: { show: false } }, yaxis: { lines: { show: true } } },
-                tooltip: { theme: 'dark', x: { show: true }, y: { formatter: val => val + ' actions' } }
+                tooltip: { theme: 'dark', x: { show: true }, y: { formatter: val => val + ' actions' } },
+                responsive: [{ breakpoint: 769, options: { chart: { height: 250 }, markers: { size: 4 }, xaxis: { labels: { rotate: 0, hideOverlappingLabels: true, style: { colors: textColor, fontSize: '10px' } } }, yaxis: { labels: { style: { colors: textColor, fontSize: '10px' } } } } }]
             });
             activityTimeChart.render();
         }
@@ -653,6 +734,15 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => reloadChartsBtn.classList.remove('spinning'), 1000);
         });
     }
+
+    // Chart text/grid colors are baked in at render time, so redraw when the theme flips
+    let lastIsDark = document.documentElement.classList.contains('dark');
+    new MutationObserver(() => {
+        const isDark = document.documentElement.classList.contains('dark');
+        if (isDark === lastIsDark) return;
+        lastIsDark = isDark;
+        if (activityTimeChart || actionTypesChart) initCharts();
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
     // Refresh data every 10 seconds
     setInterval(() => {

@@ -62,11 +62,44 @@
         return { markdown: raw, converted: false };
     }
 
+    // A table pasted from a terminal (┌──┬──┐ │ a │ b │ ├──┼──┤) is not Markdown: left alone it becomes one paragraph whose
+    // long unbreakable runs of "─" overflow the page. Put each run of such lines in a code block so it lines up.
+    const BOX_RE = /[\u2500-\u257F]/;
+    function fenceBoxTables(md) {
+        const out = [];
+        let fence = '', box = null;
+        const flush = () => { if (box) { out.push('', '```box', ...box, '```', ''); box = null; } };
+        String(md || '').split('\n').forEach((line) => {
+            const f = FENCE_RE.exec(line);
+            if (f && (!fence || f[1][0] === fence)) { flush(); fence = fence ? '' : f[1][0]; out.push(line); return; }
+            if (!fence && BOX_RE.test(line)) { (box = box || []).push(line); return; }
+            flush();
+            out.push(line);
+        });
+        flush();
+        return out.join('\n');
+    }
+
+    // "text" followed by "---" is a Markdown heading underline; here it is always meant as a rule, so separate them.
+    const DASH_RULE_RE = /^ {0,3}-{3,}[ \t]*$/;
+    function splitRules(md) {
+        const out = [];
+        let fence = '';
+        String(md || '').split('\n').forEach((line, i, all) => {
+            const f = FENCE_RE.exec(line);
+            if (f && (!fence || f[1][0] === fence)) fence = fence ? '' : f[1][0];
+            else if (!fence && DASH_RULE_RE.test(line) && i > 0 && all[i - 1].trim() !== '') out.push('');
+            out.push(line);
+        });
+        return out.join('\n');
+    }
+
     function renderMarkdown(md) {
-        const withLinks = String(md || '').replace(/\[\[([^\]\n|]+)(?:\|([^\]\n]+))?\]\]/g,
+        const withLinks = splitRules(fenceBoxTables(md)).replace(/\[\[([^\]\n|]+)(?:\|([^\]\n]+))?\]\]/g,
             (m, target, alias) => `<a class="wikilink" href="#" data-target="${esc(target.trim())}">${esc((alias || target).trim())}</a>`);
         const html = (typeof marked !== 'undefined') ? marked.parse(withLinks, { gfm: true, breaks: false }) : '<pre>' + esc(md) + '</pre>';
-        return (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(html) : html;
+        const safe = (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(html) : html;
+        return safe.replace(/<pre><code class="language-box">/g, '<pre class="md-box"><code>');
     }
 
     // ---------------------------------------------------------------------------------------------------------
@@ -149,9 +182,20 @@
                 return null;
             }
         };
-        CodeMirror.defineMode('snailmd', (config) => CodeMirror.overlayMode(
-            CodeMirror.getMode(config, { name: 'markdown', highlightFormatting: true, fencedCodeBlockHighlighting: true, taskLists: true, strikethrough: true }),
-            wikiOverlay));
+        // the Markdown mode turns "text" + "---" into a heading; hide a dash line from its look-ahead so it stays a rule
+        CodeMirror.defineMode('snailmd', (config) => {
+            const base = CodeMirror.getMode(config, { name: 'markdown', highlightFormatting: true, fencedCodeBlockHighlighting: true, taskLists: true, strikethrough: true });
+            const mode = Object.create(base);
+            mode.token = (stream, state) => {
+                const look = stream.lookAhead;
+                stream.lookAhead = function (n) {
+                    const next = look.call(this, n);
+                    return typeof next === 'string' && DASH_RULE_RE.test(next) ? '\u200b' + next : next;
+                };
+                try { return base.token(stream, state); } finally { delete stream.lookAhead; }
+            };
+            return CodeMirror.overlayMode(mode, wikiOverlay);
+        });
 
         const cm = CodeMirror(host, {
             value: '',
@@ -360,6 +404,7 @@
                     const text = doc.getLine(i);
                     if (text === undefined) continue;
                     if (/^\s{0,3}>/.test(text)) addClass(i, 'text', 'cm-quoteline');
+                    if (BOX_RE.test(text)) addClass(i, 'text', 'cm-boxline');
                     if (mode !== 'live' || active.has(i)) continue;
 
                     const task = TASK_RE.exec(text);
@@ -372,7 +417,7 @@
                         addClass(i, 'text', 'cm-taskline');
                         continue;
                     }
-                    if (HR_RE.test(text) && (i === 0 || doc.getLine(i - 1).trim() === '')) {
+                    if (HR_RE.test(text)) {
                         const el = document.createElement('div');
                         el.className = 'md-hr';
                         el.innerHTML = '<hr>';
@@ -433,6 +478,81 @@
             statsEl.textContent = `${words.toLocaleString()} ${words === 1 ? 'word' : 'words'} · ${text.length.toLocaleString()} characters · Ln ${cur.line + 1}, Col ${cur.ch + 1}`;
         }
 
+        // ---- numbered lists keep their numbers (like Word) ----------------------------------------------------
+        // Delete an item from the middle of a numbered list and the items after it close the gap (1 2 4 5 -> 1 2 3 4).
+        // It only happens when the list was a clean 1, 2, 3... run before the deletion, so numbers the user chose
+        // themselves are left alone, and undoing the fix (Ctrl+Z) keeps it undone: undo/redo never trigger it.
+        const ORDERED_ITEM_RE = /^(\s*)(\d+)([.)])\s/;
+        const orderedItem = (n) => {
+            const m = n >= 0 && n < cm.lineCount() ? ORDERED_ITEM_RE.exec(cm.getLine(n)) : null;
+            return m ? { line: n, indent: m[1], num: parseInt(m[2], 10) } : null;
+        };
+
+        // the numbered items of the list that line `seed` belongs to (same indent; nested lines and blank lines are skipped over)
+        function listRun(seed) {
+            const first = orderedItem(seed);
+            if (!first) return null;
+            const indentOf = (t) => (/^\s*/.exec(t) || [''])[0];
+            const scan = (from, step) => {
+                const found = [];
+                for (let n = from; n >= 0 && n < cm.lineCount(); n += step) {
+                    const text = cm.getLine(n);
+                    if (!text.trim()) continue;
+                    const item = orderedItem(n);
+                    if (item && item.indent === first.indent) { found.push(item); continue; }
+                    if (indentOf(text).length > first.indent.length) continue;   // nested or continued under an item
+                    break;
+                }
+                return found;
+            };
+            const before = scan(seed - 1, -1).reverse();
+            const after = scan(seed + 1, 1);
+            return [...before, first, ...after];
+        }
+
+        function renumberAfterDelete(change) {
+            if (!change.removed || change.removed.length < 2) return;   // no line went away
+            const at = change.from.line;
+            for (const seed of [at + 1, at]) {
+                const run = listRun(seed);
+                if (!run || run.length < 2) continue;
+                // where the numbers jump: that is where the deleted item was
+                const jumps = [];
+                for (let i = 1; i < run.length; i++) if (run[i].num !== run[i - 1].num + 1) jumps.push(i);
+                let fixFrom = -1, start = 0;
+                if (jumps.length === 1 && run[jumps[0]].num > run[jumps[0] - 1].num + 1 && run[jumps[0]].line <= at + 1) {
+                    // if numbered items were deleted, the next one has to be exactly the number after them, or the user had
+                    // numbered the list their own way and it stays as it is
+                    const gone = change.removed.map((t) => ORDERED_ITEM_RE.exec(t)).filter((m) => m && m[1] === run[0].indent);
+                    if (gone.length && parseInt(gone[gone.length - 1][2], 10) + 1 !== run[jumps[0]].num) continue;
+                    fixFrom = jumps[0];
+                    start = run[fixFrom - 1].num + 1;
+                } else if (jumps.length === 0 && run[0].line <= at + 1) {
+                    // the top of the list went: the next item takes the number the first deleted one had
+                    const lost = change.removed.map((t) => ORDERED_ITEM_RE.exec(t)).find((m) => m && m[1] === run[0].indent);
+                    if (lost && parseInt(lost[2], 10) < run[0].num) { fixFrom = 0; start = parseInt(lost[2], 10); }
+                }
+                if (fixFrom < 0) continue;
+                cm.operation(() => {
+                    for (let i = fixFrom; i < run.length; i++) {
+                        const want = start + (i - fixFrom);
+                        if (run[i].num === want) continue;
+                        const ch = run[i].indent.length;
+                        cm.replaceRange(String(want), { line: run[i].line, ch }, { line: run[i].line, ch: ch + String(run[i].num).length }, 'renumber');
+                    }
+                });
+                return;
+            }
+        }
+
+        cm.on('changes', (_cm, changes) => {
+            if (cm.isReadOnly()) return;
+            const edit = changes.find((c) => !['setValue', 'undo', 'redo', 'renumber'].includes(c.origin) && c.removed && c.removed.length > 1);
+            if (!edit) return;
+            // not inside the event: the document may not be changed from within its own change handlers
+            Promise.resolve().then(() => renumberAfterDelete(edit));
+        });
+
         let silent = false;
         cm.on('change', () => {
             scheduleDecorate();
@@ -469,6 +589,93 @@
             }
         });
 
+        // ---- reading view: render, and let columns be resized like in Excel (drag the edge of a header) -------
+        function addColumnResizers() {
+            reading.querySelectorAll('table').forEach((table) => {
+                const heads = Array.from(table.querySelectorAll('thead th'));
+                if (!heads.length) return;
+                const rows = Array.from(table.rows);
+                const widthOf = (th) => Math.round(th.getBoundingClientRect().width);
+                const setWidth = (col, px) => rows.forEach((r) => {
+                    const c = r.cells[col];
+                    if (!c) return;
+                    const v = px ? px + 'px' : '';
+                    c.style.width = v; c.style.minWidth = v; c.style.maxWidth = v;
+                });
+                let frozen = false;
+                const freeze = () => {   // pin every column where it is, so only the dragged one moves
+                    if (frozen) return;
+                    frozen = true;
+                    const w = heads.map(widthOf);
+                    heads.forEach((h, i) => setWidth(i, w[i]));
+                    table.classList.add('is-sized');
+                };
+                heads.forEach((th, col) => {
+                    const grip = document.createElement('span');
+                    grip.className = 'md-col-grip';
+                    grip.title = 'Drag to resize. Double-click to fit the contents.';
+                    grip.addEventListener('pointerdown', (e) => {
+                        if (e.button !== 0) return;
+                        e.preventDefault();
+                        freeze();
+                        const startX = e.clientX, startW = widthOf(th);
+                        grip.setPointerCapture(e.pointerId);
+                        grip.classList.add('is-dragging');
+                        const move = (ev) => setWidth(col, Math.max(40, Math.round(startW + ev.clientX - startX)));
+                        const up = () => {
+                            grip.classList.remove('is-dragging');
+                            grip.removeEventListener('pointermove', move);
+                            grip.removeEventListener('pointerup', up);
+                            grip.removeEventListener('pointercancel', up);
+                        };
+                        grip.addEventListener('pointermove', move);
+                        grip.addEventListener('pointerup', up);
+                        grip.addEventListener('pointercancel', up);
+                    });
+                    grip.addEventListener('dblclick', () => {   // fit to the longest cell, like Excel's auto-fit
+                        freeze();
+                        setWidth(col, 0);
+                        rows.forEach((r) => { if (r.cells[col]) r.cells[col].style.whiteSpace = 'nowrap'; });
+                        const fit = widthOf(th);
+                        rows.forEach((r) => { if (r.cells[col]) r.cells[col].style.whiteSpace = ''; });
+                        setWidth(col, Math.min(fit, 700));
+                    });
+                    th.appendChild(grip);
+                });
+            });
+        }
+
+        // ---- smooth mouse-wheel scrolling (notches become a glide; trackpads are already smooth, so left alone)
+        function smoothWheel(el) {
+            let target = 0, raf = 0;
+            const step = () => {
+                const diff = target - el.scrollTop;
+                if (Math.abs(diff) < 0.5) { el.scrollTop = target; raf = 0; return; }
+                el.scrollTop += diff * 0.18;
+                raf = requestAnimationFrame(step);
+            };
+            el.addEventListener('wheel', (e) => {
+                if (e.ctrlKey || e.shiftKey || e.deltaMode !== 0 || Math.abs(e.deltaY) < 50 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+                const max = el.scrollHeight - el.clientHeight;
+                if (max <= 0) return;
+                if (!raf) target = el.scrollTop;
+                const next = Math.max(0, Math.min(max, target + e.deltaY));
+                if (next === target && (next === 0 || next === max)) return;   // at an end: let the page react normally
+                e.preventDefault();
+                e.stopImmediatePropagation();   // CodeMirror's own wheel handler must not scroll as well
+                target = next;
+                if (!raf) raf = requestAnimationFrame(step);
+            }, { passive: false, capture: true });
+        }
+        smoothWheel(cm.getScrollerElement());
+        smoothWheel(reading);
+
+        function renderReading() {
+            reading.innerHTML = renderMarkdown(cm.getValue());
+            reading.querySelectorAll('a:not(.wikilink)').forEach((a) => { a.target = '_blank'; a.rel = 'noopener noreferrer'; });
+            addColumnResizers();
+        }
+
         // ---- public API ------------------------------------------------------------------------------------
         const api = {
             cm,
@@ -479,7 +686,7 @@
                 cm.clearHistory();
                 cm.setCursor({ line: 0, ch: 0 });
                 silent = false;
-                if (mode === 'reading') reading.innerHTML = renderMarkdown(cm.getValue());
+                if (mode === 'reading') renderReading();
                 scheduleDecorate();
                 updateStats();
                 updateBar();
@@ -497,8 +704,7 @@
                 host.hidden = isReading;
                 bar.hidden = isReading;
                 if (isReading) {
-                    reading.innerHTML = renderMarkdown(cm.getValue());
-                    reading.querySelectorAll('a:not(.wikilink)').forEach((a) => { a.target = '_blank'; a.rel = 'noopener noreferrer'; });
+                    renderReading();
                     reading.scrollTop = 0;
                 } else {
                     cm.refresh();

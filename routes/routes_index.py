@@ -7,7 +7,7 @@ from flask import (Blueprint, request, redirect, url_for, render_template,
 from flask_socketio import emit, join_room
 from datetime import datetime, timezone
 
-from qr_gen import generate_custom_qr_svg
+from qr_gen import generate_custom_qr_svg, QR_SHAPES
 from backbone.rate_limiter import RateLimiter
 from backbone.utils import log_history, format_size
 from rich.markup import escape
@@ -743,6 +743,12 @@ def generate_qr_code():
     # The colour is written into SVG markup that the browser inserts as HTML - only allow a plain hex colour.
     if not isinstance(qr_color, str) or not HEX_COLOR_RE.match(qr_color):
         qr_color = '#dc2626'
+    qr_bg = data.get('bg', '#ffffff')
+    if not isinstance(qr_bg, str) or not HEX_COLOR_RE.match(qr_bg):
+        qr_bg = '#ffffff'
+    qr_shape = data.get('shape')
+    if qr_shape not in QR_SHAPES:
+        qr_shape = QR_SHAPES[0]
 
     if qr_type == 'ip':
         host_port = request.host.split(':')
@@ -760,7 +766,8 @@ def generate_qr_code():
     elif qr_type == 'instagram': qr_data_string = "https://www.instagram.com/Sometimes.Saksham/"
     else: return jsonify(success=False, error="Invalid QR code type."), 400
     try:
-        svg_code = generate_custom_qr_svg(qr_data_string, color=qr_color, logo_path=logo_path if os.path.exists(logo_path) else None)
+        svg_code = generate_custom_qr_svg(qr_data_string, color=qr_color, bg=qr_bg, shape=qr_shape,
+                                          logo_path=logo_path if os.path.exists(logo_path) else None)
         return jsonify(success=True, svg=svg_code)
     except Exception as e:
         logging.error(f"Failed to generate QR code for type '{qr_type}': {e}")

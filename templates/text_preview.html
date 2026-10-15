@@ -15,10 +15,10 @@
             // Same theme and accent colour as the main page
             try {
                 if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
-                document.documentElement.classList.add('accent-' + (localStorage.getItem('accent') || 'red'));
-            } catch (e) { document.documentElement.classList.add('accent-red'); }
+            } catch (e) { /* storage blocked */ }
         })();
     </script>
+    <script src="{{ url_for('static', filename='js/accent-boot.js') }}" data-mode="follow"></script>
 </head>
 
 <body class="text-preview-page">

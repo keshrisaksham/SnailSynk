@@ -100,6 +100,37 @@ def load_secret_key(instance_path):
         console.log(f"[yellow]Could not persist session key ({e}); sessions will reset on restart.[/yellow]")
         return secrets.token_hex(32)
 
+def repair_instance_permissions(instance_path):
+    """Make every file in instance/ writable. A file left behind by an earlier run as root (or by an unzip that
+    stripped permissions) makes logging and saving fail with 'Permission denied'. When the folder itself is ours,
+    a file we cannot write can simply be replaced by a copy we own; otherwise say how to fix it."""
+    root = Path(instance_path)
+    unfixable = []
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        probe = root / '.write_test'
+        probe.touch()
+        probe.unlink()
+    except OSError:
+        unfixable.append(root)
+        root = None
+    if root is not None:
+        for path in root.rglob('*'):
+            if path.is_symlink() or not path.is_file() or os.access(path, os.R_OK | os.W_OK):
+                continue
+            try:
+                data = path.read_bytes() if os.access(path, os.R_OK) else b''
+                tmp = path.with_name(path.name + '.repair')
+                tmp.write_bytes(data)
+                os.replace(tmp, path)
+                console.log(f"[yellow]Fixed permissions on {path.name} (it wasn't writable).[/yellow]")
+            except OSError:
+                unfixable.append(path)
+    if unfixable:
+        console.log(f"[bold red]Can't write to {', '.join(p.name for p in unfixable)} in {instance_path}.[/bold red]")
+        console.log(f"[yellow]Fix it with:  sudo chown -R \"$USER\" \"{instance_path}\"   and restart.[/yellow]")
+
+repair_instance_permissions(app.instance_path)
 app.secret_key = load_secret_key(app.instance_path)
 app.config['FILES_FOLDER'] = str(files_folder_path)
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)

@@ -4,7 +4,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <!-- The title can be customized by child templates -->
     <title>{% block title %}SnailSynk Admin{% endblock %}</title>
 
@@ -21,12 +21,12 @@
         (function () {
             const theme = localStorage.getItem('theme');
             if (theme === 'dark') document.documentElement.classList.add('dark');
-            const accent = localStorage.getItem('accent') || 'red';
-            document.documentElement.classList.add('accent-' + accent);
         })();
     </script>
+    <script src="{{ url_for('static', filename='js/accent-boot.js') }}" data-mode="follow"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/glass.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/background-fx.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-mobile.css') }}">
 </head>
 
 <body class="glass admin-page">

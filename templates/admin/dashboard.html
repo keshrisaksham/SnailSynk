@@ -288,14 +288,9 @@
                     </table>
                 </div>
                 <div id="log-footer" class="pagination-footer" style="display: none;">
-                    <button id="load-more-logs-btn" class="btn btn-secondary">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" style="width: 16px; height: 16px; margin-right: 6px;">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                        Load More
-                    </button>
+                    <button type="button" class="btn btn-secondary page-prev" aria-label="Previous page"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;"><polyline points="15 18 9 12 15 6"></polyline></svg> Prev</button>
+                    <span class="page-info" aria-live="polite"></span>
+                    <button type="button" class="btn btn-secondary page-next" id="load-more-logs-btn" aria-label="Next page">Next <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
                 </div>
             </div>
         </div>
@@ -336,6 +331,11 @@
                         </svg>
                         <p>No buffer messages yet. Messages committed to the Shared Text Buffer will appear here.</p>
                     </div>
+                </div>
+                <div id="buffer-footer" class="pagination-footer" style="display: none;">
+                    <button type="button" class="btn btn-secondary page-prev" aria-label="Previous page"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;"><polyline points="15 18 9 12 15 6"></polyline></svg> Prev</button>
+                    <span class="page-info" aria-live="polite"></span>
+                    <button type="button" class="btn btn-secondary page-next" aria-label="Next page">Next <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
                 </div>
             </div>
         </div>

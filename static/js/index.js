@@ -1384,6 +1384,14 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'pin-card';
             card.dataset.id = pin.id;
 
+            // shown only while the pin is enlarged, so a long pin can be collapsed from the top without scrolling to the bottom
+            const collapseTop = document.createElement('button');
+            collapseTop.type = 'button';
+            collapseTop.className = 'pin-card-collapse-top';
+            collapseTop.title = 'Collapse';
+            collapseTop.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>Collapse';
+            card.appendChild(collapseTop);
+
             const content = document.createElement('div');
             content.className = 'pin-card-content';
             content.textContent = pin.text;
@@ -1429,13 +1437,19 @@ document.addEventListener('DOMContentLoaded', () => {
         pinnedMessagesContainer.addEventListener('click', async (e) => {
             const copyBtn = e.target.closest('.copy-pin-btn');
             const enlargeBtn = e.target.closest('.enlarge-pin-btn');
+            const collapseTopBtn = e.target.closest('.pin-card-collapse-top');
             const unpinBtn = e.target.closest('.unpin-btn');
             if (copyBtn) { const card = copyBtn.closest('.pin-card'); const content = card.querySelector('.pin-card-content').textContent; const copied = await copyToClipboard(content); if (copied) { flash('[OK] Pinned text copied.', 'success'); } else { flash('[ERR] Failed to copy.', 'error'); } }
-            if (enlargeBtn) {
-                const card = enlargeBtn.closest('.pin-card');
+            if (enlargeBtn || collapseTopBtn) {
+                const card = (enlargeBtn || collapseTopBtn).closest('.pin-card');
                 const content = card.querySelector('.pin-card-content');
-                const isExpanded = content.classList.toggle('expanded');
-                enlargeBtn.textContent = isExpanded ? 'Collapse' : 'Enlarge';
+                const isExpanded = collapseTopBtn ? false : !content.classList.contains('expanded');
+                content.classList.toggle('expanded', isExpanded);
+                card.classList.toggle('is-expanded', isExpanded);
+                const enlarge = card.querySelector('.enlarge-pin-btn');
+                if (enlarge) enlarge.textContent = isExpanded ? 'Collapse' : 'Enlarge';
+                // collapsing from the top: keep the card in view instead of leaving the list scrolled past it
+                if (!isExpanded) card.scrollIntoView({ block: 'nearest' });
             }
             if (unpinBtn) { const card = unpinBtn.closest('.pin-card'); const pinId = card.dataset.id; if (pinId) { handleUnpinClick(pinId); } }
         });

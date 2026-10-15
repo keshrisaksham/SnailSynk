@@ -1178,6 +1178,28 @@ html.dark #theme-toggle .moon-icon {
     text-decoration: underline;
 }
 
+/* "Collapse" at the top of an enlarged pinned text (the Enlarge/Collapse button is at the bottom, far from the top of a long pin) */
+.pin-card-collapse-top {
+    display: none;
+    align-items: center;
+    gap: 0.3rem;
+    align-self: flex-start;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 0.25rem 0.65rem 0.25rem 0.5rem;
+    border: 1px solid rgba(var(--c-primary-rgb), 0.35);
+    border-radius: 999px;
+    background: var(--c-surface);
+    color: var(--c-primary);
+    font: 600 0.72rem var(--font-sans);
+    cursor: pointer;
+}
+
+.pin-card.is-expanded .pin-card-collapse-top {
+    display: inline-flex;
+}
+
 .pin-card-actions {
     display: flex;
     justify-content: flex-end;

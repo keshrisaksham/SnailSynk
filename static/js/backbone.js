@@ -10,14 +10,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }[match]));
     }
 
-    // The QR code is always drawn on a white square, so its modules must be dark. In the dark theme --c-primary is a
-    // light colour, which would give an unscannable light-on-white code; so use the standard (light theme) accent.
-    const QR_ACCENTS = { red: '#dc2626', blue: '#2563eb', green: '#16a34a', purple: '#7c3aed', orange: '#ea580c', black: '#171717' };
+    // QR colours follow the theme and accent. Light theme: accent dots on white. Dark theme: light accent dots on the
+    // dark background (an inverted code - most modern scanners read it). Click a QR to cycle through the dot shapes.
+    const QR_ACCENTS = {
+        light: { red: '#dc2626', blue: '#2563eb', green: '#16a34a', purple: '#7c3aed', orange: '#ea580c', black: '#171717' },
+        dark: { red: '#fca5a5', blue: '#93c5fd', green: '#86efac', purple: '#c4b5fd', orange: '#fdba74', black: '#d4d4d4' }
+    };
+    const QR_SHAPES = ['circle', 'square', 'diamond', 'dot', 'star'];
+    let qrShape = 'circle';
+    try {
+        const savedShape = localStorage.getItem('qrShape');
+        if (QR_SHAPES.includes(savedShape)) qrShape = savedShape;
+    } catch (e) { /* storage unavailable - keep the default */ }
 
-    function getAccentColor() {
-        const cls = Array.from(document.documentElement.classList).find(c => c.startsWith('accent-'));
+    function getQrStyle() {
+        const root = document.documentElement;
+        const isDark = root.classList.contains('dark');
+        const cls = Array.from(root.classList).find(c => c.startsWith('accent-'));
         const name = cls ? cls.slice('accent-'.length) : '';
-        return QR_ACCENTS[name] || getComputedStyle(document.documentElement).getPropertyValue('--c-primary').trim();
+        const palette = isDark ? QR_ACCENTS.dark : QR_ACCENTS.light;
+        return {
+            color: palette[name] || palette.red,
+            bg: isDark ? '#171717' : '#ffffff',
+            shape: qrShape
+        };
     }
 
     async function fetchQrCode(type, payload = {}) {
@@ -25,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/qr_code', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type, color: getAccentColor(), ...payload })
+                body: JSON.stringify({ type, ...getQrStyle(), ...payload })
             });
             if (!response.ok) throw new Error('Server returned an error.');
             const result = await response.json();
@@ -38,7 +54,45 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error(`Error fetching ${type} QR code:`, error);
             return '<p style="color:var(--c-error-text); font-size:0.8rem;">Could not load QR code.</p>';
         }
-    };
+    }
+
+    // Every QR on the page is a "slot" so it can be redrawn when the theme, accent or shape changes.
+    const qrSlots = [];
+    async function renderQr(container, type, payload = {}) {
+        let slot = qrSlots.find(sl => sl.container === container);
+        if (!slot) {
+            slot = { container, ticket: 0 };
+            qrSlots.push(slot);
+            container.addEventListener('click', () => {
+                if (!container.querySelector('svg')) return;
+                qrShape = QR_SHAPES[(QR_SHAPES.indexOf(qrShape) + 1) % QR_SHAPES.length];
+                try { localStorage.setItem('qrShape', qrShape); } catch (e) { /* ignore */ }
+                redrawQrs();
+            });
+            container.style.cursor = 'pointer';
+            container.title = 'Click to change the dot shape';
+        }
+        slot.type = type;
+        slot.payload = payload;
+        const ticket = ++slot.ticket;
+        if (!container.querySelector('svg')) container.innerHTML = '<div class="spinner"></div>';
+        const svg = await fetchQrCode(type, payload);
+        if (ticket === slot.ticket) container.innerHTML = svg; // ignore stale responses
+    }
+    function redrawQrs() {
+        qrSlots.forEach(sl => {
+            if (sl.container.querySelector('svg')) renderQr(sl.container, sl.type, sl.payload);
+        });
+    }
+    let lastQrTheme = '';
+    new MutationObserver(() => {
+        const st = getQrStyle();
+        const key = st.color + st.bg;
+        if (key === lastQrTheme) return;
+        lastQrTheme = key;
+        redrawQrs();
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    lastQrTheme = getQrStyle().color + getQrStyle().bg;
 
     // --- THEME TOGGLE LOGIC (Shared Header) ---
     const themeToggle = document.getElementById('theme-toggle');
@@ -54,13 +108,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const accentPicker = document.getElementById('accent-picker');
     const accentOptions = document.querySelectorAll('.accent-option');
 
-    // Apply saved accent on page load (already done in head, but set active state)
-    const savedAccent = localStorage.getItem('accent') || 'red';
+    // The accent is already on <html> (random or saved, chosen in the head script) - mirror it in the pickers
+    const currentAccentName = () => {
+        const cls = Array.from(document.documentElement.classList).find(c => c.startsWith('accent-'));
+        return cls ? cls.slice('accent-'.length) : 'red';
+    };
+    const isRandomAccent = () => localStorage.getItem('accentMode') !== 'fixed';
+    // Picking a colour yourself pins it; the "new colour every visit" switch turns random back on
+    const setAccentMode = (mode) => {
+        localStorage.setItem('accentMode', mode);
+        const sw = document.getElementById('randomAccentToggle');
+        if (sw) {
+            sw.classList.toggle('on', mode !== 'fixed');
+            sw.setAttribute('aria-checked', mode !== 'fixed' ? 'true' : 'false');
+        }
+    };
     accentOptions.forEach(opt => {
-        if (opt.dataset.accent === savedAccent) {
+        if (opt.dataset.accent === currentAccentName()) {
             opt.classList.add('active');
         }
     });
+    setAccentMode(isRandomAccent() ? 'random' : 'fixed');
+    const randomAccentToggle = document.getElementById('randomAccentToggle');
+    if (randomAccentToggle) {
+        randomAccentToggle.addEventListener('click', () => {
+            setAccentMode(isRandomAccent() ? 'fixed' : 'random');
+            // Pinning keeps whatever colour is showing right now
+            if (!isRandomAccent()) localStorage.setItem('accent', currentAccentName());
+        });
+    }
 
     if (accentToggle && accentPicker) {
         // Toggle picker visibility
@@ -85,8 +161,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 accentOptions.forEach(opt => opt.classList.remove('active'));
                 option.classList.add('active');
 
-                // Save to localStorage
+                // Save to localStorage (a manual pick pins the colour)
                 localStorage.setItem('accent', accent);
+                setAccentMode('fixed');
 
                 // Close picker
                 accentPicker.classList.remove('visible');
@@ -145,9 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         openConnectBtn.addEventListener('click', async () => {
             connectModal.classList.add('visible');
-            ipQrContainer.innerHTML = '<div class="spinner"></div>';
-            const svgCode = await fetchQrCode('ip');
-            ipQrContainer.innerHTML = svgCode;
+            await renderQr(ipQrContainer, 'ip');
         });
 
         const closeModal = () => connectModal.classList.remove('visible');
@@ -181,8 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
             generateWifiQrBtn.textContent = 'Generating...';
             wifiQrContainer.innerHTML = '<div class="spinner"></div>';
 
-            const svgCode = await fetchQrCode('wifi', { ssid, password });
-            wifiQrContainer.innerHTML = svgCode;
+            await renderQr(wifiQrContainer, 'wifi', { ssid, password });
 
             generateWifiQrBtn.disabled = false;
             generateWifiQrBtn.textContent = 'Generate QR Code';
@@ -207,9 +281,7 @@ document.addEventListener('DOMContentLoaded', () => {
         openCoffeeBtn.addEventListener('click', async () => {
             coffeeModal.classList.add('visible');
             if (!isFeedbackQrLoaded) {
-                feedbackQrContainer.innerHTML = '<div class="spinner"></div>';
-                const svgCode = await fetchQrCode('instagram');
-                feedbackQrContainer.innerHTML = svgCode;
+                await renderQr(feedbackQrContainer, 'instagram');
                 isFeedbackQrLoaded = true;
             }
         });
@@ -228,9 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showSupportQrBtn.classList.add('active');
 
             if (!isSupportQrLoaded) {
-                coffeeQrContainer.innerHTML = '<div class="spinner"></div>';
-                const svgCode = await fetchQrCode('upi');
-                coffeeQrContainer.innerHTML = svgCode;
+                await renderQr(coffeeQrContainer, 'upi');
                 isSupportQrLoaded = true;
             }
         });
@@ -498,10 +568,38 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    let refreshNavSpy = () => {};
+    // Scroll-spy: the bottom nav highlights the section you're looking at while you scroll the page
+    if (mobileBottomNav) {
+        const spyTabs = Array.from(mobileBottomNav.querySelectorAll('.mobile-nav-tab[data-target]'));
+        const spyTargets = spyTabs.map(tab => ({ tab, el: document.querySelector('.' + tab.dataset.target) }))
+            .filter(t => t.el)
+            .sort((a, b) => a.el.getBoundingClientRect().top - b.el.getBoundingClientRect().top);
+        let spyTicking = false;
+        const updateSpy = () => {
+            spyTicking = false;
+            if (!isMobile() || (settingsSheet && settingsSheet.classList.contains('visible'))) return;
+            const headerHeight = document.querySelector('.app-header')?.offsetHeight || 56;
+            const probe = headerHeight + window.innerHeight * 0.25;
+            let active = spyTargets[0];
+            spyTargets.forEach(t => { if (t.el.getBoundingClientRect().top <= probe) active = t; });
+            if (window.innerHeight + window.pageYOffset >= document.documentElement.scrollHeight - 4) {
+                active = spyTargets[spyTargets.length - 1];   // at the very bottom: the last section
+            }
+            document.getElementById('navTabSettings')?.classList.remove('active');
+            if (active) spyTabs.forEach(t => t.classList.toggle('active', t === active.tab));
+        };
+        refreshNavSpy = updateSpy;
+        window.addEventListener('scroll', () => {
+            if (!spyTicking) { spyTicking = true; requestAnimationFrame(updateSpy); }
+        }, { passive: true });
+    }
+
     // Close settings sheet when tapping backdrop
     if (settingsBackdrop) {
         settingsBackdrop.addEventListener('click', () => {
             if (settingsSheet) settingsSheet.classList.remove('visible');
+            refreshNavSpy();
         });
     }
 
@@ -538,7 +636,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const mobileAccentOptions = mobileAccentPicker.querySelectorAll('.accent-option');
 
         // Set initial active state
-        const currentAccent = localStorage.getItem('accent') || 'red';
+        const currentAccent = currentAccentName();
         mobileAccentOptions.forEach(opt => {
             if (opt.dataset.accent === currentAccent) {
                 opt.classList.add('active');
@@ -567,6 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 localStorage.setItem('accent', accent);
+                setAccentMode('fixed');
             });
         });
     }

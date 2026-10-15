@@ -139,7 +139,11 @@ class ActionLogger:
                 self._count(log_entry)
             self._emit_log(log_entry)
         except (OSError, TypeError, ValueError) as e:
-            logging.error(f"Failed to write to action log at {self.path}: {e}")
+            # Same failure on every request would flood the console - report it once per distinct error
+            msg = f"Failed to write to action log at {self.path}: {e}"
+            if msg != getattr(self, '_last_write_error', None):
+                self._last_write_error = msg
+                logging.error(msg)
 
     # --- reading ----------------------------------------------------------
     def get_logs(self, page=1, limit=10):

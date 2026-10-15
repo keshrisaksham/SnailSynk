@@ -1,4 +1,4 @@
-# 🐌 SnailSynk — Ultimate Edition
+# 🐌 SnailSynk
 
 Oh good, another file-sharing app. Revolutionary. Except this one runs on **your** network, on **your** machine, with **your** files, and no cloud company gets to "improve your experience" with them. Built with Python, Flask and WebSockets. No internet required, which, given your Wi-Fi, may be a feature.
 
@@ -30,10 +30,31 @@ Short version: you put something in on one device, it shows up on the other one.
 
 ### 🛡️ Admin dashboard and notes
 
-* **Live client monitoring:** see who is connected and what they did. Yes, you will find out exactly who is on your Wi-Fi at 3 a.m. No, we can't make that less awkward.
-* **IP blocking:** block and unblock addresses. A velvet rope for your network, minus the bouncer with opinions.
-* **Notes editor:** an admin-only notes space with a folder tree, drag and drop, search, a folder filter and multi-select (download, export, delete). The editor is Obsidian-style Markdown: type plain Markdown and it is shown formatted as you go (the marks only appear on the line you are editing). It has clickable checklists, `[[links]]` between notes (Ctrl+click), a reading view, a source view, word counts and PDF export. Notes are real `.md` files, and old rich-text notes are converted the first time you open them. Your secrets deserve better than a file called `notes_new (3).txt`.
-* **Activity log:** every action is logged and rotated so the log doesn't eat your disk. We thought of that so you wouldn't have to.
+Everything below lives behind the admin login at `/admin`. Everyone else gets the file sharing and nothing else, which is exactly as exciting as it sounds. The login is rate-limited, because yes, someone will try `admin` / `admin`.
+
+**Monitoring (the dashboard):**
+
+* **Live stat cards:** connected clients, blocked IPs, total logged actions, and activity in the last hour. Numbers that go up. Management loves those.
+* **Activity graph:** a 7-day area chart plus a breakdown of what people actually did (page views, uploads, downloads, locks, note edits...). Spoiler: mostly page views, mostly you.
+* **Access control:** see every connected device with the time it joined and block it with one tap. Or type an IP and block that instead. The blocklist is right there for unblocking, once you've calmed down. A velvet rope for your network, minus the bouncer with opinions.
+* **Recent activity:** every action with its time (UTC), IP, a colour-coded label and the details. Search it, clear it, page through it ten at a time. Yes, you will find out exactly who was on your Wi-Fi at 3 a.m. No, we can't make that less awkward.
+* **Buffer history:** every text committed to the shared buffer, with who sent it and when. Copy it, or edit it first and then copy it, search it, wipe it. For the moment someone overwrote the buffer and swears it wasn't them. Long messages fold up, with a *Collapse* button at the top so you don't have to scroll back through your own novel.
+* **Activity log housekeeping:** logged to a file and rotated, so it won't eat your disk. We thought of that so you wouldn't have to.
+
+**Admin powers on the main page:** log in and a few extra tricks appear in the file list.
+
+* **Share links:** make a link to a file or a whole folder (folders arrive as a ZIP), with an optional expiry in hours. Anyone with the link can download it, no login needed. Locked files and folders are never served this way, because we're generous, not reckless.
+* **Favorites:** star the files you keep going back to. A pin board for people who have, let's say, a system.
+
+**Notes editor:**
+
+* An admin-only notes space with a folder tree, drag and drop, search, a folder filter and multi-select (download, export, delete). Your secrets deserve better than a file called `notes_new (3).txt`.
+* Obsidian-style Markdown: type plain Markdown and it is shown formatted as you go (the marks only appear on the line you are editing). Clickable checklists, `[[links]]` between notes (Ctrl+click), a reading view, a source view, word counts and PDF export.
+* Notes are real `.md` files, and old rich-text notes are converted the first time you open them. No lock-in. We checked.
+
+**AI chat management:** save, search, rename and delete your BugByte conversations (see below), so you can prove later that it started it.
+
+**Admin on your phone:** the whole admin area works on a phone: stat cards in a tidy 2 x 2, a sticky tab bar, activity shown as cards instead of a table that needs a magnifying glass, and the notes editor opens full screen with the formatting bar at the bottom where your thumbs are. Yes, you will use the admin panel from the toilet. We know.
 
 ### 🤖 BugByte AI chat
 
@@ -47,7 +68,7 @@ Short version: you put something in on one device, it shows up on the other one.
 * **Liquid-glass interface** with outline buttons and a soft grid that lights up around your mouse pointer. It does nothing useful. It looks great. Priorities. (Switched off if you ask your OS for reduced motion, because we're not monsters.)
 * **Light and True Black dark modes.** The dark theme is pure black with thin edges and bright accents. For contrast, for OLED screens, and for the five people who actually read this far.
 * **Accent colours:** red, blue, green, purple, orange or black. Pick the one that matches your personality. Every page follows, so there is nowhere to hide from your choice.
-* **Responsive:** works on phones, with a bottom bar in the admin area. Yes, you will use the admin panel from the toilet. We know.
+* **Responsive:** built to work on a phone, with a floating bottom bar on both the main page and the admin area. It's a real phone layout, not a desktop page that's been squeezed until it gave up.
 
 ### 📱 Connectivity and security
 
@@ -88,8 +109,8 @@ Installation has been reduced to "run one file and answer three questions". If t
 ### Install
 
 ```bash
-git clone https://github.com/keshrisaksham/SnailSynk-Ultimate.git
-cd SnailSynk-Ultimate
+git clone https://github.com/keshrisaksham/SnailSynk.git
+cd SnailSynk
 ```
 
 Now run the installer for your system. It asks a few questions, installs the packages, makes a shortcut and starts the app. All the boring stuff, handled, so you can go back to ignoring your actual work.
@@ -144,7 +165,7 @@ When it starts, the terminal shows two addresses. Read them. They are right ther
 
 Your browser will say **"Not secure"** and act very dramatic about it. That's because SnailSynk made its own certificate, at home, from scratch, like a tiny artisan, instead of paying a corporation to say "trust me". Click *Advanced*, then *Proceed*. Once per device. Then it shuts up.
 
-The admin area is at `/admin`: live clients, IP blocking and the notes editor. It is where the snail keeps its secrets. Knock politely. Or don't, you have the password. Hopefully.
+The admin area is at `/admin`: the monitoring dashboard (live clients, graphs, IP blocking, activity log, buffer history) and the notes editor. It is where the snail keeps its secrets. Knock politely. Or don't, you have the password. Hopefully.
 
 ***
 

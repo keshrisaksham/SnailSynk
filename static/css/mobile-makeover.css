@@ -1,0 +1,271 @@
+/* mobile-makeover.css - the phone layout polish, loaded after mobile-responsive.css and glass.css.
+   Phones only (max-width: 768px): floating glass bottom bar, compact cards, a tidier buffer button grid, a drop zone
+   that reads as tappable, and one page scroll (no scrolling lists inside the scrolling page). Everything is driven by
+   --c-primary / --c-primary-rgb, so it follows the theme and the (random) accent colour. */
+
+/* the "new colour every visit" switch lives in the settings sheet */
+.mobile-switch {
+    flex: none;
+    position: relative;
+    width: 44px;
+    height: 26px;
+    margin-left: auto;
+    border-radius: 999px;
+    background: var(--c-border);
+    transition: background-color 0.2s ease;
+}
+
+.mobile-switch::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--c-surface);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s ease;
+}
+
+.mobile-settings-toggle-btn.on .mobile-switch {
+    background: var(--c-primary);
+}
+
+.mobile-settings-toggle-btn.on .mobile-switch::after {
+    transform: translateX(18px);
+}
+
+@media (max-width: 768px) {
+
+    /* ---- page ------------------------------------------------------------------------------------------- */
+    body.glass {
+        padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+    }
+
+    main.app-container {
+        padding: 0.5rem 0.75rem 0.5rem;
+    }
+
+    .main-content,
+    .right-column-wrapper {
+        gap: 0.625rem;
+    }
+
+    /* a section jumped to from the bottom bar stops just below the sticky header */
+    .shared-text-section,
+    .upload-section,
+    .download-section {
+        scroll-margin-top: 64px;
+    }
+
+    /* ---- header ------------------------------------------------------------------------------------------ */
+    body.glass .app-header {
+        border-bottom: 1px solid rgba(var(--c-primary-rgb), 0.16);
+    }
+
+    body.glass .app-header .btn.btn-secondary {
+        border-radius: 999px;
+        padding: 0.35rem 0.9rem;
+        min-height: 32px;
+    }
+
+    /* ---- cards ------------------------------------------------------------------------------------------- */
+    body.glass .panel {
+        border-radius: 20px;
+    }
+
+    body.glass .panel-header {
+        padding: 0.8rem 0.95rem;
+        border-bottom-color: rgba(var(--c-primary-rgb), 0.1);
+    }
+
+    body.glass .panel-header h2 {
+        font-size: 0.95rem;
+        letter-spacing: -0.005em;
+    }
+
+    body.glass .panel-body {
+        padding: 0.85rem 0.95rem 0.95rem;
+    }
+
+    /* ---- buffer ------------------------------------------------------------------------------------------ */
+    textarea#sharedTextArea {
+        min-height: 104px;
+        border-radius: 0;
+    }
+
+    body.glass .textarea-wrapper {
+        background: rgba(var(--c-primary-rgb), 0.04);
+        border-color: rgba(var(--c-primary-rgb), 0.18);
+    }
+
+    /* Commit gets the wide slot; the other five fill a tidy 4-column grid (no stragglers) */
+    body.glass #shared-text-view {
+        padding-bottom: 0;
+    }
+
+    body.glass .clipboard-status {
+        min-height: 0;
+        padding: 0;
+    }
+
+    body.glass .form-actions.buffer-actions {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.45rem;
+        margin-top: 0.7rem;
+    }
+
+    body.glass .form-actions.buffer-actions .btn {
+        min-height: 42px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        padding: 0.5rem 0.25rem;
+    }
+
+    body.glass .form-actions.buffer-actions #commitBtn {
+        grid-column: span 2;
+        order: 1;
+        min-height: 46px;
+        font-size: 0.9rem;
+        box-shadow: 0 6px 18px rgba(var(--c-primary-rgb), 0.35);
+    }
+
+    body.glass .form-actions.buffer-actions #pasteBtn { order: 2; }
+    body.glass .form-actions.buffer-actions #selectBtn { order: 3; }
+    body.glass .form-actions.buffer-actions #pinBtn { order: 4; }
+    body.glass .form-actions.buffer-actions #clearBtn { order: 5; }
+
+    body.glass .form-actions.buffer-actions #editorBtn {
+        order: 6;
+        grid-column: span 2;
+    }
+
+    /* ---- upload ------------------------------------------------------------------------------------------ */
+    body.glass .file-drop-zone {
+        border: 2px dashed rgba(var(--c-primary-rgb), 0.45);
+        background: rgba(var(--c-primary-rgb), 0.06);
+        border-radius: 18px;
+        padding: 1.6rem 1rem;
+        text-align: center;
+    }
+
+    body.glass .file-drop-zone p {
+        color: var(--c-text-muted);
+    }
+
+    body.glass .file-drop-zone strong {
+        color: var(--c-text-main);
+    }
+
+    body.glass .form-actions.upload-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+    }
+
+    body.glass .form-actions.upload-actions .btn {
+        min-height: 44px;
+        border-radius: 12px;
+        white-space: nowrap;
+        overflow: visible;
+    }
+
+    /* phones can't pick a folder (common.css hides that button): Choose File + Upload share the row,
+       and Clear (shown once files are queued) gets its own full-width row */
+    body.glass .form-actions.upload-actions #clearUploadBtn {
+        grid-column: 1 / -1;
+        order: 3;
+    }
+
+    body.glass .form-actions.upload-actions #uploadButton {
+        box-shadow: 0 6px 18px rgba(var(--c-primary-rgb), 0.3);
+    }
+
+    body.glass .form-actions.upload-actions #uploadButton:disabled {
+        opacity: 0.5;
+        box-shadow: none;
+    }
+
+    /* ---- files: one page scroll, no inner scrolling list ------------------------------------------------- */
+    body.glass .download-container {
+        max-height: none;
+        overflow: visible;
+    }
+
+    body.glass .download-section tbody {
+        gap: 0.4rem;
+    }
+
+    body.glass .download-section tbody tr {
+        border-radius: 14px;
+        min-height: 54px;
+    }
+
+    /* group headings are bands, not cards: the card min-height above must not stretch them (that left a blank gap
+       between a category label and its first row) */
+    body.glass .download-section tbody tr.type-group-separator {
+        min-height: 0;
+        border-radius: 0;
+    }
+
+    /* folder icons become small accent tiles */
+    body.glass .download-section td:nth-child(2) .folder-link .folder-icon {
+        width: 30px;
+        height: 30px;
+        padding: 7px;
+        border-radius: 10px;
+        background: rgba(var(--c-primary-rgb), 0.12);
+        opacity: 1;
+    }
+
+    body.glass .breadcrumb-nav {
+        margin-bottom: 0.5rem;
+    }
+
+    /* ---- bottom bar: floating glass pill ----------------------------------------------------------------- */
+    body.glass .mobile-bottom-nav {
+        left: 12px;
+        right: 12px;
+        bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+        padding: 6px;
+        gap: 2px;
+        border: 1px solid var(--glass-edge, var(--c-border));
+        border-radius: 24px;
+        background: color-mix(in srgb, var(--c-surface) 82%, transparent);
+        -webkit-backdrop-filter: blur(18px) saturate(160%);
+        backdrop-filter: blur(18px) saturate(160%);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    }
+
+    html.dark body.glass .mobile-bottom-nav {
+        background: rgba(20, 20, 24, 0.82);
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    body.glass .mobile-nav-tab {
+        padding: 0.45rem 0.25rem 0.35rem;
+        border-radius: 18px;
+        gap: 0.15rem;
+    }
+
+    body.glass .mobile-nav-tab.active {
+        color: var(--c-primary);
+        background: rgba(var(--c-primary-rgb), 0.14);
+    }
+
+    /* the "scroll to bottom" button floats above the pill */
+    body.glass .floating-scroll-btn {
+        bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+    }
+
+    /* the settings sheet sits above the floating bar */
+    body.glass .mobile-settings-content {
+        border-radius: 24px 24px 0 0;
+    }
+
+    body.glass .mobile-settings-toggle-btn[role="switch"] {
+        justify-content: space-between;
+    }
+}

@@ -26,7 +26,7 @@ from urllib.error import URLError
 # Configuration
 # ──────────────────────────────────────────────────────────────────────
 
-GITHUB_REPO = "keshrisaksham/SnailSynk-Ultimate"
+GITHUB_REPO = "keshrisaksham/SnailSynk"
 GITHUB_ZIP_URL = f"https://github.com/{GITHUB_REPO}/archive/refs/heads/main.zip"
 
 # Files and directories that must NEVER be overwritten during an upgrade.
@@ -88,8 +88,8 @@ def should_preserve(rel_path: str) -> bool:
 def ask_target_folder() -> Path:
     """Prompt the user to enter the path to their SnailSynk installation."""
     print("Please enter the full path to your existing SnailSynk folder.")
-    print("  Example (Windows): C:\\Users\\you\\SnailSynk-Ultimate")
-    print("  Example (Linux):   /home/you/SnailSynk-Ultimate")
+    print("  Example (Windows): C:\\Users\\you\\SnailSynk")
+    print("  Example (Linux):   /home/you/SnailSynk")
     print()
 
     while True:
@@ -153,7 +153,7 @@ def download_zip(dest: Path) -> Path:
 
 def extract_zip(zip_path: Path, dest: Path) -> Path:
     """Extract the ZIP and return the path to the repo root inside it.
-    GitHub ZIPs contain a single top-level folder like 'SnailSynk-Ultimate-main/'."""
+    GitHub ZIPs contain a single top-level folder like 'SnailSynk-main/'."""
     print_step("Extracting archive ...")
 
     with zipfile.ZipFile(zip_path, "r") as zf:

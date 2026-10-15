@@ -23,10 +23,9 @@
             } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
                 document.documentElement.classList.add('dark');
             }
-            const accent = localStorage.getItem('accent') || 'red';
-            document.documentElement.classList.add('accent-' + accent);
         })();
     </script>
+    <script src="{{ url_for('static', filename='js/accent-boot.js') }}" data-mode="either"></script>
 </head>
 
 <body class="glass">

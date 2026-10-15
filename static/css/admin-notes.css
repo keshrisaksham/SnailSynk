@@ -215,6 +215,15 @@ html.dark .search-container {
     border-radius: 8px;
 }
 
+.note-item.dragging {
+    opacity: 0.5;
+}
+
+.notes-list .note-item.folder.drop-target {
+    background: rgba(var(--c-primary-rgb), 0.16);
+    border-color: var(--c-primary);
+}
+
 .note-item[draggable="true"] {
     cursor: grab;
 }
@@ -311,7 +320,9 @@ html.dark .search-container {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;   /* when the sidebar is narrow the buttons drop to a second row instead of spilling out */
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .batch-count {

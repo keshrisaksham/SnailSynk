@@ -680,6 +680,12 @@ body.glass .notes-list .note-item:not([style*="--lvl: 0"])::before {
     pointer-events: none;
 }
 
+body.glass .notes-list .note-item.folder.drop-target,
+body.glass .notes-list .note-item.folder.drop-target:hover {
+    background: rgba(var(--c-primary-rgb), 0.18);
+    border-color: var(--c-primary);
+}
+
 body.glass .notes-list .note-item.folder {
     font-size: 0.8125rem;
     font-weight: 600;
@@ -777,10 +783,20 @@ body.glass .notes-sidebar .batch-actions {
     border-radius: 12px;
     background: var(--btn-fill-hover);
     gap: 0.35rem;
+    box-sizing: border-box;
+    max-width: calc(100% - 1.5rem);   /* the margins above are part of the width, so it can't overflow the sidebar */
+    flex-wrap: wrap;
+    row-gap: 0.4rem;
+}
+
+body.glass .notes-sidebar .batch-actions .btn {
+    padding-inline: 0.45rem;
 }
 
 body.glass .notes-sidebar .batch-count {
     color: var(--c-text-main);
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
 /* ---- admin layout: one set of measurements for the dashboard and the notes editor ---------------------------------
