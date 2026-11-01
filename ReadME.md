@@ -117,9 +117,9 @@ Now run the installer for your system. It asks a few questions, installs the pac
 
 | System | Run |
 |--------|-----|
-| **Windows** | double-click `Snail.bat`. Not right-click. Not "open with". Double-click |
-| **Linux / macOS** | `./Snail.sh` (it asks for `sudo` once, only to install packages and create the `snailsynk` command. No, it won't run the server as root. We have standards) |
-| **Android (Termux)** | `bash snail_termux.sh`. Yes, really. Yes, on your phone |
+| **Windows** | open the `Set-and-Run` folder and double-click `Snail.bat`. Not right-click. Not "open with". Double-click |
+| **Linux / macOS** | `./Set-and-Run/Snail.sh` (it asks for `sudo` once, only to install packages and create the `snailsynk` command. No, it won't run the server as root. We have standards) |
+| **Android (Termux)** | `bash Set-and-Run/snail_termux.sh`. Yes, really. Yes, on your phone |
 
 During setup you choose:
 
@@ -135,25 +135,25 @@ The hard part is over. From here on it's one click, which even you can manage.
 
 * Windows: the **SnailSynk** desktop shortcut, or type `Snail` in a new terminal.
 * Linux: the shortcut, or type `snailsynk`.
-* Or run `python SnailSynk.py` yourself, if you enjoy doing things the hard way.
+* Or run `python app/SnailSynk.py` yourself, if you enjoy doing things the hard way.
 
 ### Handy options
 
 ```
-Snail.sh --reset-admin     forgot the admin password? of course you did
-Snail.sh --setup           run the setup questions again, from the top
-Snail.sh --uninstall       remove SnailSynk, but keep your notes and uploaded files
-Snail.sh --clean-install   erase EVERYTHING and install from scratch
-Snail.sh --help            list the options (revolutionary, we know)
+./Set-and-Run/Snail.sh --reset-admin     forgot the admin password? of course you did
+./Set-and-Run/Snail.sh --setup           run the setup questions again, from the top
+./Set-and-Run/Snail.sh --uninstall       remove SnailSynk, but keep your notes and uploaded files
+./Set-and-Run/Snail.sh --clean-install   erase EVERYTHING and install from scratch
+./Set-and-Run/Snail.sh --help            list the options (revolutionary, we know)
 ```
 
-On Windows use `Snail.bat` with the same options. On Android (Termux) it's `bash snail_termux.sh --uninstall` and `bash snail_termux.sh --clean-install`.
+Once it's installed, `snailsynk --reset-admin` and friends work from any folder. On Windows use `Set-and-Run\Snail.bat` (or just `Snail`) with the same options. On Android (Termux) it's `bash Set-and-Run/snail_termux.sh --uninstall` and `bash Set-and-Run/snail_termux.sh --clean-install`.
 
 **`--uninstall`** removes the program: the app folder, your settings, the admin account, the certificate, logs, the shortcuts and the `snailsynk` command. It **keeps your notes** (`instance/notes`) and **the files people uploaded** (`Downloads/SnailSynk/files`). For goodbyes with a safety net. File locks and favorites are stored with the program, so those go; the files themselves stay, just unlocked.
 
 **`--clean-install`** is the nuclear option. It wipes **everything SnailSynk ever stored, notes and uploaded files included**, then sets itself up again from the first question. Use it when you want a genuinely fresh start, or when you've "tried a few things" and the snail no longer trusts your judgement.
 
-Both show exactly what will be removed and what will stay, then wait for you to type `yes` (uninstall) or `DELETE` (clean install). Anything else cancels. Add `--yes` (for example `Snail.sh --uninstall --yes`) to skip the question in scripts. Python packages are shared with your other programs, so neither option removes them.
+Both show exactly what will be removed and what will stay, then wait for you to type `yes` (uninstall) or `DELETE` (clean install). Anything else cancels. Add `--yes` (for example `./Set-and-Run/Snail.sh --uninstall --yes`) to skip the question in scripts. Python packages are shared with your other programs, so neither option removes them.
 
 Prefer to configure by hand? Everything lives in `.env`. Go wild:
 
@@ -179,13 +179,26 @@ The admin area is at `/admin`: the monitoring dashboard (live clients, graphs, I
 
 ## 🔄 Updating
 
-`upgrade.py` downloads the latest version from GitHub and replaces the app files, keeping your `.env`, `instance/` and install data:
+`Set-and-Run/upgrade.py` downloads the latest version from GitHub and replaces the app files, keeping your `.env`, `instance/` and install data:
 
 ```bash
-python upgrade.py
+python Set-and-Run/upgrade.py
 ```
 
 It overwrites **everything else** in the folder. If you've been "improving" the code yourself, commit or back it up first. The snail will not be able to help you find it afterwards, and neither will we.
+
+***
+
+## 🗂️ Project layout
+
+```
+app/         the program itself: SnailSynk.py, backbone/, routes/, templates/, static/
+Set-and-Run/ install, start and maintain it: Snail.sh, Snail.bat, snail_termux.sh, upgrade.py, cleanup.py
+builder/     build a .deb package or a portable Windows .exe (see builder/README.md)
+assets/      icons
+```
+
+Your settings (`.env`) and data (`instance/`) sit in the SnailSynk folder itself, outside `app/`, so replacing the code never touches them.
 
 ***
 

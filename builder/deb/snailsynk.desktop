@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=SnailSynk
+Comment=Share files, text and notes on your own network
+Exec=snailsynk
+Icon=snailsynk
+Terminal=true
+Categories=Network;FileTransfer;
+Keywords=share;files;transfer;sync;notes;

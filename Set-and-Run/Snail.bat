@@ -15,13 +15,15 @@ rem    Snail.bat --help          this list.
 rem    (add --yes to --uninstall / --clean-install to skip the "are you sure?" question)
 rem
 rem  This file finds Python, installs the packages and makes the shortcut. The
-rem  questions, the admin account and the summary live in essentials\setup_wizard.py
+rem  questions, the admin account and the summary live in app\setup_wizard.py
 rem  (so they work the same on every system). No administrator rights are needed.
 rem ============================================================================
 
 rem Work in the folder this file lives in, wherever it was started from
-pushd "%~dp0"
-set "WIZARD=essentials\setup_wizard.py"
+pushd "%~dp0.."
+set "WIZARD=app\setup_wizard.py"
+rem Snail.bat lives in Set-and-Run; the SnailSynk folder one level up is the working directory.
+set "SNAIL_BIN=%CD%\Set-and-Run"
 set "PY="
 
 if /i "%~1"=="--help" goto :help
@@ -145,7 +147,7 @@ echo [4/4] Finishing touches
 set "SNAIL_DIR=%CD%"
 
 rem Add this folder to your PATH (your own, not the system one), so "Snail" works in any new terminal
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$d=$env:SNAIL_DIR; $p=[Environment]::GetEnvironmentVariable('Path','User'); if(-not $p){$p=''}; if(($p -split ';') -notcontains $d){[Environment]::SetEnvironmentVariable('Path',(($p.TrimEnd(';')+';'+$d).TrimStart(';')),'User')}" >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$d=$env:SNAIL_BIN; $p=[Environment]::GetEnvironmentVariable('Path','User'); if(-not $p){$p=''}; if(($p -split ';') -notcontains $d){[Environment]::SetEnvironmentVariable('Path',(($p.TrimEnd(';')+';'+$d).TrimStart(';')),'User')}" >nul 2>&1
 if errorlevel 1 goto :path_skipped
 echo   [OK] Type  Snail  in any NEW terminal to start SnailSynk.
 goto :path_done
@@ -154,7 +156,7 @@ echo   [!] Couldn't add SnailSynk to your PATH. Not a big deal.
 :path_done
 
 rem Desktop shortcut (this also finds a Desktop that OneDrive moved)
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop')+'\SnailSynk.lnk'); $s.TargetPath=$env:SNAIL_DIR+'\Snail.bat'; $s.WorkingDirectory=$env:SNAIL_DIR; $s.IconLocation=$env:SNAIL_DIR+'\essentials\icon.ico'; $s.Save()" >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop')+'\SnailSynk.lnk'); $s.TargetPath=$env:SNAIL_BIN+'\Snail.bat'; $s.WorkingDirectory=$env:SNAIL_DIR; $s.IconLocation=$env:SNAIL_DIR+'\assets\icon.ico'; $s.Save()" >nul 2>&1
 if errorlevel 1 goto :shortcut_skipped
 echo   [OK] Desktop shortcut created.
 goto :shortcut_done
@@ -201,7 +203,7 @@ cls
 rem Open the browser as soon as the server is listening (not after a blind delay)
 start "" /b %PY% "%WIZARD%" open-browser
 
-%PY% SnailSynk.py
+%PY% app\SnailSynk.py
 set "RC=%ERRORLEVEL%"
 
 %PY% "%WIZARD%" bye --rc %RC%
@@ -224,7 +226,7 @@ exit /b %RC%
 
 rem ============================================================================
 rem  Uninstall: removes the program, keeps notes and uploaded files
-rem  (the deleting is done by essentials\cleanup.py)
+rem  (the deleting is done by Set-and-Run\cleanup.py)
 rem ============================================================================
 :uninstall
 call :find_python
@@ -235,16 +237,16 @@ if /i "%~2"=="-y" set "CLEAN_YES=1"
 cls
 %PY% "%WIZARD%" banner --sub "uninstall"
 if defined CLEAN_YES goto :uninstall_go
-%PY% -B "essentials\cleanup.py" uninstall --ask-only
+%PY% -B "Set-and-Run\cleanup.py" uninstall --ask-only
 if errorlevel 1 goto :cleanup_cancelled
 :uninstall_go
 set "SNAIL_DIR=%CD%"
 rem Remove the desktop shortcut and take this folder out of your PATH again
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$f=[Environment]::GetFolderPath('Desktop')+'\SnailSynk.lnk'; if(Test-Path $f){Remove-Item $f -Force}; $d=$env:SNAIL_DIR; $p=[Environment]::GetEnvironmentVariable('Path','User'); if($p){$n=(($p -split ';') | Where-Object { $_ -and $_ -ne $d }) -join ';'; [Environment]::SetEnvironmentVariable('Path',$n,'User')}" >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$f=[Environment]::GetFolderPath('Desktop')+'\SnailSynk.lnk'; if(Test-Path $f){Remove-Item $f -Force}; $d=$env:SNAIL_BIN; $p=[Environment]::GetEnvironmentVariable('Path','User'); if($p){$n=(($p -split ';') | Where-Object { $_ -and $_ -ne $d -and $_ -ne $env:SNAIL_DIR }) -join ';'; [Environment]::SetEnvironmentVariable('Path',$n,'User')}" >nul 2>&1
 echo   [OK] Removed the shortcut and the PATH entry.
 rem Everything below is in one block on purpose: cmd reads it all before it runs, so it is fine that Python deletes this file.
 (
-  %PY% -B "essentials\cleanup.py" uninstall --yes
+  %PY% -B "Set-and-Run\cleanup.py" uninstall --yes
   echo.
   popd
   exit /b 0
@@ -263,10 +265,10 @@ if /i "%~2"=="-y" set "CLEAN_YES=1"
 cls
 %PY% "%WIZARD%" banner --sub "clean install"
 if defined CLEAN_YES goto :clean_go
-%PY% -B "essentials\cleanup.py" clean --ask-only
+%PY% -B "Set-and-Run\cleanup.py" clean --ask-only
 if errorlevel 1 goto :cleanup_cancelled
 :clean_go
-%PY% -B "essentials\cleanup.py" clean --yes
+%PY% -B "Set-and-Run\cleanup.py" clean --yes
 if errorlevel 1 goto :cleanup_cancelled
 goto :install_app
 

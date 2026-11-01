@@ -103,10 +103,19 @@ def ask_target_folder() -> Path:
             print_warn(f'"{target}" is not a valid directory. Try again.\n')
             continue
 
-        # Sanity check: look for SnailSynk.py inside
-        if not (target / "SnailSynk.py").exists():
+        # Sanity check: look for app/SnailSynk.py inside
+        if (target / "SnailSynk.py").exists() and not (target / "app").is_dir():
             print_warn(
-                f'"SnailSynk.py" not found inside "{target}".\n'
+                f'"{target}" uses the old flat folder layout.\n'
+                "  Upgrading into it would leave the old files next to the new ones.\n"
+                "  Cleaner: copy your .env and instance/ folder into a fresh download of SnailSynk."
+            )
+            confirm = input("  -> Continue anyway? (y/N): ").strip().lower()
+            if confirm not in ("y", "yes"):
+                continue
+        elif not (target / "app" / "SnailSynk.py").exists():
+            print_warn(
+                f'"app/SnailSynk.py" not found inside "{target}".\n'
                 "  Are you sure this is the right folder?"
             )
             confirm = input("  -> Continue anyway? (y/N): ").strip().lower()
@@ -164,9 +173,9 @@ def extract_zip(zip_path: Path, dest: Path) -> Path:
     if len(children) == 1:
         return children[0]
 
-    # Fallback: look for one that contains SnailSynk.py
+    # Fallback: look for one that contains app/SnailSynk.py
     for child in children:
-        if (child / "SnailSynk.py").exists():
+        if (child / "app" / "SnailSynk.py").exists():
             return child
 
     print_error("Could not locate the project root inside the downloaded archive.")

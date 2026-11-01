@@ -5,16 +5,16 @@
 # ================================================================================
 # No root / sudo required. Uses Termux's pkg manager for system packages.
 #
-#   bash snail_termux.sh                 first run: setup, then start. After that: just start.
-#   bash snail_termux.sh --uninstall     remove SnailSynk, but keep your notes and the uploaded files.
-#   bash snail_termux.sh --clean-install erase EVERYTHING (notes and uploads too), then install from scratch.
-#   bash snail_termux.sh --help          this list.
+#   bash Set-and-Run/snail_termux.sh                 first run: setup, then start. After that: just start.
+#   bash Set-and-Run/snail_termux.sh --uninstall     remove SnailSynk, but keep your notes and the uploaded files.
+#   bash Set-and-Run/snail_termux.sh --clean-install erase EVERYTHING (notes and uploads too), then install from scratch.
+#   bash Set-and-Run/snail_termux.sh --help          this list.
 #   (add --yes to --uninstall / --clean-install to skip the "are you sure?" question)
 
 set -e
 
 # --- CRITICAL: Change to the script's directory ---
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."   # this script lives in Set-and-Run/; work from the SnailSynk folder
 
 # --- Pretty printing ---
 GREEN="\033[1;32m"
@@ -124,7 +124,7 @@ EOF
     echo ""
 
     # --- 6. Create a helper alias ---
-    ALIAS_LINE="alias snailsynk='cd \"$(pwd)\" && python SnailSynk.py'"
+    ALIAS_LINE="alias snailsynk='cd \"$(pwd)\" && python app/SnailSynk.py'"
     if ! grep -q "alias snailsynk" "$HOME/.bashrc" 2>/dev/null; then
         echo "" >> "$HOME/.bashrc"
         echo "# SnailSynk launcher" >> "$HOME/.bashrc"
@@ -164,18 +164,18 @@ launch_routine() {
     (sleep 3 && termux-open-url "https://localhost:${LAUNCH_PORT}" 2>/dev/null) &
 
     # Start the application
-    python SnailSynk.py
+    python app/SnailSynk.py
 }
 
 # ================================================================================
-# UNINSTALL / CLEAN INSTALL (the deleting itself is done by essentials/cleanup.py)
+# UNINSTALL / CLEAN INSTALL (the deleting itself is done by Set-and-Run/cleanup.py)
 # ================================================================================
 usage() {
     echo ""
-    echo "  bash snail_termux.sh                 first run: setup, then start. After that: just start."
-    echo "  bash snail_termux.sh --uninstall     remove SnailSynk, keeping your notes and uploaded files."
-    echo "  bash snail_termux.sh --clean-install erase everything (notes and uploads too), install from scratch."
-    echo "  bash snail_termux.sh --help          show this."
+    echo "  bash Set-and-Run/snail_termux.sh                 first run: setup, then start. After that: just start."
+    echo "  bash Set-and-Run/snail_termux.sh --uninstall     remove SnailSynk, keeping your notes and uploaded files."
+    echo "  bash Set-and-Run/snail_termux.sh --clean-install erase everything (notes and uploads too), install from scratch."
+    echo "  bash Set-and-Run/snail_termux.sh --help          show this."
     echo "    (add --yes to --uninstall or --clean-install to skip the question)"
     echo ""
 }
@@ -187,7 +187,7 @@ confirm_cleanup() {
         exit 1
     fi
     if [ "$ASSUME_YES" -eq 1 ]; then return 0; fi
-    python -B essentials/cleanup.py "$1" --ask-only
+    python -B Set-and-Run/cleanup.py "$1" --ask-only
 }
 
 uninstall_routine() {
@@ -198,13 +198,13 @@ uninstall_routine() {
         sed -i '/# SnailSynk launcher/d;/alias snailsynk=/d' "$HOME/.bashrc" 2>/dev/null || true
         print_step "Removed the 'snailsynk' alias from .bashrc"
     fi
-    python -B essentials/cleanup.py uninstall --yes
+    python -B Set-and-Run/cleanup.py uninstall --yes
 }
 
 clean_routine() {
     print_header "SNAILSYNK CLEAN INSTALL (Termux)"
     confirm_cleanup clean || return 1
-    python -B essentials/cleanup.py clean --yes
+    python -B Set-and-Run/cleanup.py clean --yes
 }
 
 # ================================================================================

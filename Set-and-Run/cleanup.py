@@ -26,6 +26,7 @@ import stat
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))   # setup_wizard.py lives in app/
 import setup_wizard as w          # the same look and feel (colours, ask, banner) as the installer
 
 ROOT = w.ROOT                                         # the SnailSynk folder
@@ -48,7 +49,7 @@ def inside(path, parent):
 
 def sanity_check():
     """Refuse to run anywhere that doesn't look like a SnailSynk folder, or where deleting would hit the wrong thing."""
-    if not (ROOT / "SnailSynk.py").is_file() or not (ROOT / "essentials" / "setup_wizard.py").is_file():
+    if not (ROOT / "app" / "SnailSynk.py").is_file() or not (ROOT / "app" / "setup_wizard.py").is_file():
         return "This doesn't look like a SnailSynk folder, so I'm not deleting anything."
     home = Path.home().resolve()
     if ROOT.resolve() in (home, Path(ROOT.anchor)) or len(ROOT.resolve().parts) < 3:

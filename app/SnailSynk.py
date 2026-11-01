@@ -36,7 +36,10 @@ from routes.utils import get_local_ip
 from routes.ssl_utils import ensure_ssl_cert
 
 # --- Initial Setup ---
-load_dotenv()
+# SNAILSYNK_HOME (set by the packaged builds) is the writable folder that holds .env and instance/. Without it
+# (running from a checkout) they stay in the SnailSynk folder, the parent of app/.
+DATA_HOME = os.environ.get('SNAILSYNK_HOME') or str(Path(__file__).resolve().parent.parent)
+load_dotenv(Path(DATA_HOME) / '.env')
 console = Console()
 # Route normal logging through Rich too, so warnings/errors match the rest of the console output.
 logging.basicConfig(
@@ -76,7 +79,7 @@ except Exception as e:
     sys.exit(1)
 
 # --- App Configuration & Initialization ---
-app = Flask(__name__, instance_relative_config=True)
+app = Flask(__name__, instance_path=str(Path(DATA_HOME) / 'instance'), instance_relative_config=True)
 
 def load_secret_key(instance_path):
     """Session signing key: FLASK_SECRET_KEY if set, otherwise one generated once and kept in
@@ -331,7 +334,7 @@ def handle_unexpected_error(e):
     return _error_response(500, close_connection=True)
 
 # --- Main Execution ---
-if __name__ == '__main__':
+def main():
     APP_PORT = int(os.environ.get('SNAILSYNK_PORT', 9000))
     local_ip = get_local_ip()
     
@@ -375,3 +378,7 @@ if __name__ == '__main__':
     porter = Porter(certfile, keyfile, APP_PORT)
     porter.activate()
     socketio.run(app, host='0.0.0.0', port=APP_PORT, certfile=certfile, keyfile=keyfile)
+
+
+if __name__ == '__main__':
+    main()

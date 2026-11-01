@@ -1,0 +1,37 @@
+.TH SNAILSYNK 1 "2026" "SnailSynk" "User Commands"
+.SH NAME
+snailsynk \- share files, text and notes on your own network
+.SH SYNOPSIS
+.B snailsynk
+[\fB\-\-setup\fR] [\fB\-\-reset\-admin\fR] [\fB\-\-no\-browser\fR] [\fB\-\-version\fR]
+.SH DESCRIPTION
+SnailSynk is a small web server for sharing files, a text buffer and notes between the devices on a trusted
+network. It serves HTTPS with a self\-signed certificate (default port 9000) and opens the page in the browser.
+.PP
+The first run asks for an admin account, the port and an optional Gemini API key. Settings and data are kept in
+\fI~/.local/share/snailsynk\fR (or \fI$XDG_DATA_HOME/snailsynk\fR); uploaded files go to \fI~/Downloads/SnailSynk/files\fR.
+.SH OPTIONS
+.TP
+.B \-\-setup
+Run the setup questions again.
+.TP
+.B \-\-reset\-admin
+Choose a new admin username and password.
+.TP
+.B \-\-no\-browser
+Do not open the browser.
+.TP
+.B \-\-version
+Show the version and exit.
+.SH ENVIRONMENT
+.TP
+.B SNAILSYNK_HOME
+Use this folder for settings and data instead of the default.
+.TP
+.B SNAILSYNK_PORT
+Port to listen on (normally set in the .env file in the data folder).
+.SH SECURITY
+Anyone on the network can upload and use the text buffer without logging in. Do not expose SnailSynk to the
+open internet.
+.SH SEE ALSO
+https://github.com/keshrisaksham/SnailSynk

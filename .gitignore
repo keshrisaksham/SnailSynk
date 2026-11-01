@@ -28,3 +28,28 @@ Backbone.py
 Old_files/
 # Package manager bookkeeping
 node_modules/
+
+# Packaging output
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+
+# Safety net: private data must never be committed, even if copied outside instance/
+.env.*
+*.pem
+*.key
+*.crt
+secret_key
+user.json
+user.json.*
+conversations/
+buffer_history.json
+content_state.json
+file_metadata.json
+share_links.json
+blocklist.json
+actions.jsonl*
+notes_ui.json

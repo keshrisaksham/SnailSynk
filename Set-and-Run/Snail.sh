@@ -3,26 +3,27 @@
 # ================================================================================
 # SnailSynk installer + launcher for Linux & macOS
 #
-#   ./Snail.sh                 first run: friendly setup, then starts the app.
+#   ./Set-and-Run/Snail.sh                 first run: friendly setup, then starts the app.
 #                              Every later run just starts the app.
-#   ./Snail.sh --reset-admin   forgot the admin password? Set a new one.
-#   ./Snail.sh --setup         run the setup questions again.
-#   ./Snail.sh --uninstall     remove SnailSynk, but keep your notes and the uploaded files.
-#   ./Snail.sh --clean-install erase EVERYTHING (notes and uploads too), then install from scratch.
-#   ./Snail.sh --help          this list.
+#   ./Set-and-Run/Snail.sh --reset-admin   forgot the admin password? Set a new one.
+#   ./Set-and-Run/Snail.sh --setup         run the setup questions again.
+#   ./Set-and-Run/Snail.sh --uninstall     remove SnailSynk, but keep your notes and the uploaded files.
+#   ./Set-and-Run/Snail.sh --clean-install erase EVERYTHING (notes and uploads too), then install from scratch.
+#   ./Set-and-Run/Snail.sh --help          this list.
 #   (add --yes to --uninstall / --clean-install to skip the "are you sure?" question)
 #
 # This script does what only a shell can (Python, packages, shortcuts). The questions,
-# the admin account and the summary live in essentials/setup_wizard.py.
+# the admin account and the summary live in app/setup_wizard.py.
 # ================================================================================
 
 # Stop the script if any command fails
 set -e
 
-# All file operations (requirements.txt, .env, instance/) happen next to this script,
-# no matter where it is called from.
-cd "$(dirname "$0")"
-WIZARD="essentials/setup_wizard.py"
+# This script lives in Set-and-Run/. Remember where it is (an absolute path, because we are about to change
+# directory), then work from the SnailSynk folder one level up: requirements.txt, .env and instance/ live there.
+SCRIPT="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+cd "$(dirname "$SCRIPT")/.."
+WIZARD="app/setup_wizard.py"
 
 # --------------------------------------------------------------------------------
 # Look and feel
@@ -85,12 +86,12 @@ run_quiet() {
 
 usage() {
     banner "installer & launcher"
-    say "  ./Snail.sh                 first run: setup, then start. After that: just start."
-    say "  ./Snail.sh --reset-admin   forgot the admin password? pick a new one."
-    say "  ./Snail.sh --setup         run the setup questions again."
-    say "  ./Snail.sh --uninstall     remove SnailSynk, keeping your notes and uploaded files."
-    say "  ./Snail.sh --clean-install erase everything (notes and uploads too) and install from scratch."
-    say "  ./Snail.sh --help          show this."
+    say "  ./Set-and-Run/Snail.sh                 first run: setup, then start. After that: just start."
+    say "  ./Set-and-Run/Snail.sh --reset-admin   forgot the admin password? pick a new one."
+    say "  ./Set-and-Run/Snail.sh --setup         run the setup questions again."
+    say "  ./Set-and-Run/Snail.sh --uninstall     remove SnailSynk, keeping your notes and uploaded files."
+    say "  ./Set-and-Run/Snail.sh --clean-install erase everything (notes and uploads too) and install from scratch."
+    say "  ./Set-and-Run/Snail.sh --help          show this."
     note "Add --yes to --uninstall or --clean-install to skip the question."
     echo
 }
@@ -138,12 +139,12 @@ create_desktop_icon() {
 
     # Install the icon globally so desktop environments reliably find it
     mkdir -p /usr/share/pixmaps
-    cp "$(pwd)/static/icon/favicon.png" /usr/share/pixmaps/snailsynk.png
+    cp "$(pwd)/app/static/icon/favicon.png" /usr/share/pixmaps/snailsynk.png
     chmod 644 /usr/share/pixmaps/snailsynk.png
 
     mkdir -p "$ICON_DIR"
     chown "$REAL_USER" "$ICON_DIR"
-    cp "$(pwd)/static/icon/favicon.png" "$ICON_DIR/snailsynk.png"
+    cp "$(pwd)/app/static/icon/favicon.png" "$ICON_DIR/snailsynk.png"
     chown "$REAL_USER" "$ICON_DIR/snailsynk.png"
     chmod 644 "$ICON_DIR/snailsynk.png"
 
@@ -249,7 +250,7 @@ setup_routine() {
         echo
         tail -n 15 "$LOG" | sed 's/^/      /'
         echo
-        note "Most often this is the internet connection. Fix it and run ./Snail.sh again."
+        note "Most often this is the internet connection. Fix it and run ./Set-and-Run/Snail.sh again."
         exit 1
     fi
 
@@ -266,7 +267,7 @@ setup_routine() {
     mkdir -p /usr/local/bin
     cat << EOF > /usr/local/bin/snailsynk
 #!/bin/bash
-exec bash "$(pwd)/Snail.sh" "\$@"
+exec bash "$SCRIPT" "\$@"
 EOF
     chmod +x /usr/local/bin/snailsynk
     ok "Created the 'snailsynk' command. Type it in any terminal to start."
@@ -286,12 +287,12 @@ EOF
     fi
     rm -f "$LOG"
 
-    as_user python3 "$WIZARD" done --cmd "type  snailsynk  in any terminal, or use the desktop shortcut." --reset "./Snail.sh --reset-admin"
+    as_user python3 "$WIZARD" done --cmd "type  snailsynk  in any terminal, or use the desktop shortcut." --reset "./Set-and-Run/Snail.sh --reset-admin"
     if [ -t 0 ]; then read -rp "  Press [Enter] to launch it... " _ || true; fi
 }
 
 # --------------------------------------------------------------------------------
-# Uninstall / clean install (the deleting itself is done by essentials/cleanup.py)
+# Uninstall / clean install (the deleting itself is done by Set-and-Run/cleanup.py)
 # --------------------------------------------------------------------------------
 # Removes the 'snailsynk' command and the shortcuts that setup created.
 remove_integration() {
@@ -328,14 +329,14 @@ confirm_cleanup() {
         exit 1
     fi
     if [ "$ASSUME_YES" -eq 1 ]; then return 0; fi
-    as_user python3 -B essentials/cleanup.py "$1" --ask-only
+    as_user python3 -B Set-and-Run/cleanup.py "$1" --ask-only
 }
 
 uninstall_routine() {
     banner "uninstall"
     if confirm_cleanup uninstall; then
         remove_integration
-        as_user python3 -B essentials/cleanup.py uninstall --yes
+        as_user python3 -B Set-and-Run/cleanup.py uninstall --yes
     else
         return 1
     fi
@@ -344,7 +345,7 @@ uninstall_routine() {
 clean_routine() {
     banner "clean install"
     if confirm_cleanup clean; then
-        as_user python3 -B essentials/cleanup.py clean --yes
+        as_user python3 -B Set-and-Run/cleanup.py clean --yes
     else
         return 1
     fi
@@ -363,7 +364,7 @@ launch_routine() {
         "packing lettuce for the journey...")"
 
     if ! command -v python3 &> /dev/null; then
-        bad "python3 wasn't found. Run  ./Snail.sh --setup  to fix that."
+        bad "python3 wasn't found. Run  ./Set-and-Run/Snail.sh --setup  to fix that."
         exit 1
     fi
 
@@ -373,7 +374,7 @@ launch_routine() {
 
     # Don't let Ctrl+C kill this script: we want to say goodbye after the server stops.
     trap : INT
-    as_user python3 SnailSynk.py || rc=$?
+    as_user python3 app/SnailSynk.py || rc=$?
     trap - INT
 
     as_user python3 "$WIZARD" bye --rc "$rc" || true
@@ -392,10 +393,10 @@ elevate_and_setup() {
     note "The web server itself never runs as root. The snail is not that reckless."
     echo
     if ! command -v sudo &> /dev/null; then
-        bad "sudo isn't available. Run this script as root once:  su -c './Snail.sh'"
+        bad "sudo isn't available. Run this script as root once:  su -c './Set-and-Run/Snail.sh'"
         exit 1
     fi
-    sudo bash "$0" --run-setup
+    sudo bash "$SCRIPT" --run-setup
 }
 
 # ================================================================================
@@ -410,7 +411,7 @@ case "${1:-}" in
         exit 0 ;;
     --reset-admin)
         if ! command -v python3 &> /dev/null; then
-            bad "python3 wasn't found. Run ./Snail.sh once first so it can set things up."
+            bad "python3 wasn't found. Run ./Set-and-Run/Snail.sh once first so it can set things up."
             exit 1
         fi
         python3 "$WIZARD" reset-admin

@@ -6,10 +6,10 @@ from urllib.parse import urlparse, urljoin
 from functools import wraps
 from backbone.rate_limiter import RateLimiter
 from backbone.storage import atomic_write_json, load_json
-from .utils import get_local_ip, get_current_ssid
+from .utils import get_local_ip, get_current_ssid, TEMPLATES_DIR
 
 admin_bp = Blueprint('admin', __name__,
-                     template_folder='../templates/admin',
+                     template_folder=os.path.join(TEMPLATES_DIR, 'admin'),
                      url_prefix='/admin')
 
 # 5 wrong logins from one IP within 10 minutes locks that IP out of the login for 5 minutes

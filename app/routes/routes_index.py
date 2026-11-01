@@ -11,9 +11,9 @@ from qr_gen import generate_custom_qr_svg, QR_SHAPES
 from backbone.rate_limiter import RateLimiter
 from backbone.utils import log_history, format_size
 from rich.markup import escape
-from .utils import get_local_ip, get_current_ssid
+from .utils import get_local_ip, get_current_ssid, TEMPLATES_DIR
 
-main_bp = Blueprint('main', __name__, template_folder='../templates')
+main_bp = Blueprint('main', __name__, template_folder=TEMPLATES_DIR)
 
 # Managers will be initialized by the main app
 file_manager, content_manager, action_logger, socketio = None, None, None, None

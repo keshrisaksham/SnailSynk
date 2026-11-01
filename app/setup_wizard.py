@@ -30,9 +30,11 @@ import time
 import webbrowser
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-ENV_PATH = ROOT / ".env"
-USER_PATH = ROOT / "instance" / "user.json"
+APP = Path(__file__).resolve().parent                   # the code (app/)
+ROOT = APP.parent                                       # the SnailSynk folder
+DATA = Path(os.environ.get("SNAILSYNK_HOME") or ROOT)   # where .env and instance/ live (the packaged builds set SNAILSYNK_HOME)
+ENV_PATH = DATA / ".env"
+USER_PATH = DATA / "instance" / "user.json"
 DEFAULT_PORT = 9000
 
 # --------------------------------------------------------------------------------------------
@@ -153,7 +155,7 @@ def write_admin_account(username, password):
     """Store the admin account exactly like the app does (argon2 hash in instance/user.json)."""
     os.environ["SNAILSYNK_ADMIN_USER"] = username
     os.environ["SNAILSYNK_ADMIN_PASS"] = password
-    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(APP))
     try:
         from backbone.user_manager import UserManager
         manager = UserManager(str(USER_PATH))

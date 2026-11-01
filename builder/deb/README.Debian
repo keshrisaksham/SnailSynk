@@ -1,0 +1,14 @@
+SnailSynk for Debian
+--------------------
+
+Run `snailsynk` in a terminal (or use the menu entry). The first run asks a few
+questions; after that it just starts. Data lives in ~/.local/share/snailsynk.
+
+The AI chat needs the Google Gemini client, which Debian does not package. It is
+optional: everything else works without it. To enable the chat, install it for
+your user and add a GEMINI_API_KEY in the setup questions:
+
+    pip install --user --break-system-packages google-genai
+
+To remove your data after uninstalling the package, delete ~/.local/share/snailsynk
+(notes are in its instance/notes folder) and ~/Downloads/SnailSynk.

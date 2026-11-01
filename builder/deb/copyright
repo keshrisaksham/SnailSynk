@@ -1,0 +1,30 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: SnailSynk
+Source: https://github.com/keshrisaksham/SnailSynk
+
+Files: *
+Copyright: 2026 YawnByte
+License: All-rights-reserved
+ The upstream README states "All rights reserved". No redistribution licence has
+ been chosen yet: replace this paragraph with the real licence before publishing
+ this package to anyone else.
+
+Files: app/static/vendor/codemirror/*
+Copyright: Marijn Haverbeke and others
+License: MIT
+
+Files: app/static/js/turndown.js
+Copyright: Dom Christie
+License: MIT
+
+Files: app/static/js/marked.min.js
+Copyright: Christopher Jeffrey, MarkedJS
+License: MIT
+
+Files: app/static/js/purify.min.js
+Copyright: Cure53 and other contributors
+License: Apache-2.0 or MPL-2.0
+
+Files: app/static/js/socket.io.min.js
+Copyright: Guillermo Rauch and Socket.IO contributors
+License: MIT

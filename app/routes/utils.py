@@ -3,6 +3,11 @@ import socket
 import platform
 import subprocess
 import logging
+import os
+
+# Absolute and free of '..': inside a frozen (PyInstaller) build routes/ only exists in the archive, so a path that
+# climbs out of it with '../templates' cannot be resolved by the operating system.
+TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'templates')
 
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

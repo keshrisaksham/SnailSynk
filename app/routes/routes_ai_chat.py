@@ -8,12 +8,16 @@ import logging
 import time
 from pathlib import Path
 from flask import Blueprint, request, jsonify, session, render_template, Response, stream_with_context
-from google import genai
-from google.genai import types
+try:   # optional: without google-genai the AI chat is simply switched off, everything else works
+    from google import genai
+    from google.genai import types
+except ImportError:
+    genai = types = None
 from backbone.rate_limiter import RateLimiter
 from backbone.storage import atomic_write_json
+from .utils import TEMPLATES_DIR
 
-ai_chat_bp = Blueprint('ai_chat', __name__, template_folder='../templates')
+ai_chat_bp = Blueprint('ai_chat', __name__, template_folder=TEMPLATES_DIR)
 
 # Action logger will be initialized by the main app
 action_logger = None
@@ -49,7 +53,7 @@ def get_gemini_client():
     """Get or initialize the Gemini client. Called at runtime to ensure .env is loaded."""
     global _gemini_client
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-    if not GEMINI_API_KEY:
+    if not GEMINI_API_KEY or genai is None:
         return None
     
     try:
