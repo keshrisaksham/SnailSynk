@@ -147,7 +147,10 @@ app.config.update(
 if os.environ.get('SNAILSYNK_BEHIND_PROXY') == '1':
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 # No wildcard CORS: Socket.IO accepts same-origin pages only, so other websites cannot drive it.
-socketio = SocketIO(app)
+# Pin the async backend to gevent (what the app monkey-patches and what porter.py/requirements expect).
+# Left on auto-detect, Flask-SocketIO prefers eventlet if it happens to be installed system-wide, and
+# eventlet is broken on newer Pythons (e.g. 3.14: "GreenSocket has no attribute 'sendmsg'").
+socketio = SocketIO(app, async_mode='gevent')
 socketio.active_clients = {}
 
 # --- Initialize Managers ---
