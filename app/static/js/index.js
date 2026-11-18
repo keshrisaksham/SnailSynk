@@ -1000,6 +1000,34 @@ document.addEventListener('DOMContentLoaded', () => {
         fileUploaded();
     });
 
+    // "Choose Folder" prefers the File System Access API (no dotfile filtering, see walkDirHandle above)
+    // when the browser supports it, falling back to the plain <input webkitdirectory> click otherwise.
+    if (chooseFolderButton) {
+        chooseFolderButton.addEventListener('click', async () => {
+            if (uploadInProgress) { flash('[INFO] Wait for the current upload to finish, or cancel it first.', 'info'); return; }
+            if (!window.showDirectoryPicker) { if (folderInput) folderInput.click(); return; }
+            let dirHandle;
+            try { dirHandle = await window.showDirectoryPicker(); }
+            catch (err) { return; }   // user cancelled the picker
+            const collected = [];
+            try { await walkDirHandle(dirHandle, '', collected, MAX_FOLDER_FILES); }
+            catch (err) {
+                console.error('Could not read the selected folder:', err);
+                flash('[ERR] Could not read the selected folder.', 'error');
+                return;
+            }
+            if (collected.length > MAX_FOLDER_FILES) {
+                flash(`[ERR] That folder has more than ${MAX_FOLDER_FILES.toLocaleString()} files; the limit is ${MAX_FOLDER_FILES.toLocaleString()}. Upload it in parts or zip it first.`, 'error');
+                return;
+            }
+            if (!collected.length) { flash('[INFO] The selected folder has no files in it, so there is nothing to upload.', 'info'); return; }
+            if (fileInput) fileInput.value = '';
+            if (folderInput) folderInput.value = '';
+            droppedSelection = { files: [], folders: [{ name: dirHandle.name, items: collected }] };
+            fileUploaded();
+        });
+    }
+
     // --- Reading dropped folders (the file inputs cannot receive these) ---
     function readAllEntries(reader) {
         return new Promise((resolve, reject) => {
@@ -1025,17 +1053,42 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Same as walkEntry, but over the File System Access API (FileSystemDirectoryHandle). Unlike the
+    // legacy webkitGetAsEntry()/webkitdirectory path above - which some browsers (e.g. Firefox, see
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1266531) silently drop dotfiles from before our code
+    // ever sees them - this API's directory iteration has no such filtering, so hidden files and folders
+    // (.git, .env, ...) come through like any other entry.
+    async function walkDirHandle(dirHandle, prefix, out, limit) {
+        if (out.length > limit) return;
+        for await (const [name, handle] of dirHandle.values()) {
+            if (out.length > limit) return;
+            if (handle.kind === 'file') {
+                if (isJunkFile(name)) continue;
+                out.push({ file: await handle.getFile(), path: prefix + name });
+            } else if (handle.kind === 'directory') {
+                await walkDirHandle(handle, `${prefix}${name}/`, out, limit);
+            }
+        }
+    }
+
     // Returns {files, folders}, or null when the drop holds plain files only (the normal path handles those).
     async function selectionFromDrop(dataTransfer) {
         const items = dataTransfer.items ? Array.from(dataTransfer.items).filter(i => i.kind === 'file') : [];
-        const entries = items.map(i => (i.webkitGetAsEntry ? i.webkitGetAsEntry() : null)).filter(Boolean);
-        if (!entries.some(e => e.isDirectory)) return null;
+        // Prefer FileSystemHandle (no dotfile filtering) when every dropped item supports it; getAsFileSystemHandle()
+        // must be called synchronously here, while the drop event is still live, same as webkitGetAsEntry() below.
+        const useHandles = items.length > 0 && items.every(i => typeof i.getAsFileSystemHandle === 'function');
+        const entries = useHandles
+            ? await Promise.all(items.map(i => i.getAsFileSystemHandle()))
+            : items.map(i => (i.webkitGetAsEntry ? i.webkitGetAsEntry() : null)).filter(Boolean);
+        const isDir = e => useHandles ? e.kind === 'directory' : e.isDirectory;
+        if (!entries.some(isDir)) return null;
         const sel = { files: [], folders: [] };
         let total = 0;
         for (const entry of entries) {
-            if (entry.isDirectory) {
+            if (isDir(entry)) {
                 const collected = [];
-                await walkEntry(entry, '', collected, MAX_FOLDER_FILES - total);
+                if (useHandles) await walkDirHandle(entry, '', collected, MAX_FOLDER_FILES - total);
+                else await walkEntry(entry, '', collected, MAX_FOLDER_FILES - total);
                 total += collected.length;
                 if (total > MAX_FOLDER_FILES) {
                     flash(`[ERR] Too many files in the dropped folders (limit ${MAX_FOLDER_FILES.toLocaleString()}). Upload them in parts or zip them first.`, 'error');
@@ -1043,7 +1096,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 sel.folders.push({ name: entry.name, items: collected });
             } else if (!isJunkFile(entry.name)) {
-                sel.files.push(await entryToFile(entry));
+                sel.files.push(useHandles ? await entry.getFile() : await entryToFile(entry));
                 total++;
             }
         }

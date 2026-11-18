@@ -181,8 +181,7 @@
                     <div class="upload-actions form-actions">
                         <button type="button" id="chooseButton" class="btn btn-secondary"
                             onclick="document.getElementById('fileInput').click();">Choose File</button>
-                        <button type="button" id="chooseFolderButton" class="btn btn-secondary"
-                            onclick="document.getElementById('folderInput').click();">Choose Folder</button>
+                        <button type="button" id="chooseFolderButton" class="btn btn-secondary">Choose Folder</button>
                         <button type="button" id="clearUploadBtn" class="btn btn-secondary"
                             style="display: none;">Clear</button>
                         <input type="hidden" id="uploadSubpath" name="subpath" value="">
@@ -395,13 +394,13 @@
                                         class="{{ 'favorite-row' if file.is_favorite else '' }}">
                                         <td style="text-align: center;"><input type="checkbox" name="selected_files"
                                                 value="{{ file.name }}" class="file-checkbox"></td>
-                                        <td><a href="{{ url_for('main.download_file', filename=file.encoded_name) }}"
+                                        <td><a href="{{ url_for('main.download_file', filename=file.name) }}"
                                                 download title="Download {{ file.name }}" class="file-link-preview"
                                                 data-filename="{{ file.encoded_name }}"
                                                 data-locked="{{ 'true' if file.is_locked else 'false' }}">{{ file.name
                                                 }}</a></td>
                                         <td class="index-file-actions">
-                                            <a href="{{ url_for('main.download_file', filename=file.encoded_name) }}"
+                                            <a href="{{ url_for('main.download_file', filename=file.name) }}"
                                                 class="btn-icon file-download-link" title="Download {{ file.name }}"
                                                 data-filename="{{ file.encoded_name }}"
                                                 data-locked="{{ 'true' if file.is_locked else 'false' }}"><svg

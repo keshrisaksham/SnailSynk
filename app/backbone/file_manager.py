@@ -124,6 +124,18 @@ class FileManager:
         except ValueError:  # e.g. different drives on Windows
             return False
 
+    def resolve_file(self, rel_path):
+        """Absolute path for `rel_path` if it names a real file inside files_folder, or None.
+        Rejects a symlink whose target resolves outside the sandbox, so routes that serve a
+        file by path (download/view) can't be tricked into reading arbitrary files on disk."""
+        rel_path = self.normalize_rel(rel_path)
+        if not rel_path:
+            return None
+        full_path = os.path.join(self.files_folder, *rel_path.split('/'))
+        if not self._is_within(full_path) or not os.path.isfile(full_path):
+            return None
+        return full_path
+
     def _validate_subpath(self, subpath):
         """Validate and resolve a subpath within files_folder. Returns the absolute path or raises ValueError."""
         norm = self.normalize_rel(subpath)

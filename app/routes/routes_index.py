@@ -2,6 +2,7 @@
 import os
 import re
 import logging
+from collections import Counter
 from flask import (Blueprint, request, redirect, url_for, render_template,
                    send_from_directory, send_file, flash, jsonify, Response, session, abort)
 from flask_socketio import emit, join_room
@@ -83,8 +84,19 @@ def upload_file():
     success_msgs, error_msgs = file_manager.save_uploaded_files(
         uploaded_files, request.remote_addr, subpath=subpath, is_admin=is_admin,
         relpaths=relpaths, quiet=in_folder_upload)
-    if error_msgs and not in_folder_upload:   # folder uploads report once, at the end (/api/upload/folder/finish)
-        log_history("Upload Failed", f"{escape(' '.join(error_msgs))} (from [{_client_color()}]{request.remote_addr}[/])")
+    if error_msgs:
+        if in_folder_upload:
+            # A folder batch can reject dozens of files for the same reason (e.g. a locked
+            # subfolder, or names past MAX_UPLOAD_DEPTH); one line per distinct reason, with a
+            # count, instead of either flooding the log or - as before - logging nothing at all
+            # ('/api/upload/folder/finish' only reports totals, never why files were rejected).
+            counts = Counter(error_msgs)
+            top = [f"{msg} (x{n})" if n > 1 else msg for msg, n in counts.most_common(5)]
+            if len(counts) > 5:
+                top.append(f"+{len(counts) - 5} more distinct reasons")
+            log_history("Upload Failed", f"{escape('; '.join(top))} (from [{_client_color()}]{request.remote_addr}[/])")
+        else:
+            log_history("Upload Failed", f"{escape(' '.join(error_msgs))} (from [{_client_color()}]{request.remote_addr}[/])")
 
     if success_msgs:
         names = [f.filename for f in uploaded_files if f.filename]
@@ -162,6 +174,8 @@ def download_file(filename):
         return jsonify(success=False, error="Invalid path."), 400
     if not _can_read(rel):
         return jsonify(success=False, error="This file (or its folder) is locked. Enter the password to download.", is_locked=True), 403
+    if not file_manager.resolve_file(rel):
+        return jsonify(success=False, error="File not found."), 404
     action_logger.log(request.remote_addr, 'FILE_DOWNLOAD', {'file': rel})
     return send_from_directory(file_manager.files_folder, rel, as_attachment=True)
 
@@ -707,6 +721,9 @@ def resolve_share_link(token):
             logging.error(f"Error serving shared folder: {e}")
             flash("An error occurred while preparing the shared folder.", "error")
             return redirect(url_for('.index'))
+    if not file_manager.resolve_file(filepath):
+        flash("This shared file could not be found.", "error")
+        return redirect(url_for('.index'))
     return send_from_directory(file_manager.files_folder, filepath, as_attachment=True)
 
 @main_bp.route('/api/file/favorite', methods=['POST'])
@@ -794,6 +811,8 @@ def view_image(filename):
         abort(404)
     if not _can_read(rel):
         abort(403)
+    if not file_manager.resolve_file(rel):
+        abort(404)
     response = send_from_directory(file_manager.files_folder, rel, mimetype=mimetype,
                                    as_attachment=False, download_name=os.path.basename(rel))
     # An SVG opened directly is a live document, so it must not be able to run scripts on this site's origin
@@ -900,6 +919,8 @@ def download_locked_file(filename):
     # A locked file inside a locked folder still needs the folder unlocked first
     if not file_manager.can_access(rel, [rel], session.get('unlocked_folders', [])):
         return jsonify(error="This file is inside a locked folder."), 403
+    if not file_manager.resolve_file(rel):
+        return jsonify(error="File not found."), 404
     if file_manager.verify_file_password(rel, password):
         unlock_limiter.reset(request.remote_addr)
         action_logger.log(request.remote_addr, 'FILE_DOWNLOAD_UNLOCKED', {'file': rel})
