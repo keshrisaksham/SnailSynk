@@ -6,10 +6,11 @@
 # No root / sudo required. Uses Termux's pkg manager for system packages.
 #
 #   bash Set-and-Run/snail_termux.sh                 first run: setup, then start. After that: just start.
+#   bash Set-and-Run/snail_termux.sh --update        pull the latest SnailSynk from GitHub and update this install in place.
 #   bash Set-and-Run/snail_termux.sh --uninstall     remove SnailSynk, but keep your notes and the uploaded files.
 #   bash Set-and-Run/snail_termux.sh --clean-install erase EVERYTHING (notes and uploads too), then install from scratch.
 #   bash Set-and-Run/snail_termux.sh --help          this list.
-#   (add --yes to --uninstall / --clean-install to skip the "are you sure?" question)
+#   (add --yes to --update / --uninstall / --clean-install to skip the "are you sure?" question)
 
 set -e
 
@@ -168,15 +169,55 @@ launch_routine() {
 }
 
 # ================================================================================
+# UPDATE (pulls the latest version from GitHub; keeps .env, instance/ and uploaded files)
+# ================================================================================
+update_routine() {
+    print_header "SNAILSYNK UPDATE (Termux)"
+    if [ "$ASSUME_YES" -ne 1 ]; then
+        echo "  This downloads the latest SnailSynk from GitHub and replaces the app files."
+        echo "  Your .env, instance data and uploaded files are left untouched."
+        read -rp "  -> Proceed with update? (y/N): " ans || ans=""
+        case "$ans" in
+            y|Y|yes|YES) ;;
+            *) echo ""; echo "  Update cancelled."; return 1 ;;
+        esac
+    fi
+    if ! command -v python &> /dev/null; then
+        print_error "python wasn't found. Run bash Set-and-Run/snail_termux.sh once first so it can set things up."
+        return 1
+    fi
+
+    print_step "Fetching the latest version..."
+    if ! python -B Set-and-Run/upgrade.py --target "$(pwd)" --yes; then
+        print_error "Update failed. Your existing installation was left as-is."
+        return 1
+    fi
+    print_step "Files updated."
+
+    print_step "Making sure dependencies are up to date..."
+    if [ -f "requirements.txt" ]; then
+        if pip install -r requirements.txt --quiet; then
+            print_step "Dependencies are up to date."
+        else
+            print_warn "Some dependencies may not have installed cleanly."
+        fi
+    fi
+
+    echo ""
+    print_step "Update complete. Restart SnailSynk to use the new version."
+}
+
+# ================================================================================
 # UNINSTALL / CLEAN INSTALL (the deleting itself is done by Set-and-Run/cleanup.py)
 # ================================================================================
 usage() {
     echo ""
     echo "  bash Set-and-Run/snail_termux.sh                 first run: setup, then start. After that: just start."
+    echo "  bash Set-and-Run/snail_termux.sh --update        pull the latest SnailSynk from GitHub and update this install in place."
     echo "  bash Set-and-Run/snail_termux.sh --uninstall     remove SnailSynk, keeping your notes and uploaded files."
     echo "  bash Set-and-Run/snail_termux.sh --clean-install erase everything (notes and uploads too), install from scratch."
     echo "  bash Set-and-Run/snail_termux.sh --help          show this."
-    echo "    (add --yes to --uninstall or --clean-install to skip the question)"
+    echo "    (add --yes to --update, --uninstall or --clean-install to skip the question)"
     echo ""
 }
 
@@ -218,6 +259,9 @@ case "${1:-}" in
     --help|-h)
         usage
         exit 0 ;;
+    --update)
+        rc=0; update_routine || rc=$?
+        exit "$rc" ;;
     --uninstall)
         rc=0; uninstall_routine || rc=$?
         exit "$rc" ;;

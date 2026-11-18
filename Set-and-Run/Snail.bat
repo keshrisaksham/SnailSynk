@@ -9,10 +9,11 @@ rem    Snail.bat                 first run: friendly setup, then starts the app.
 rem                              Every later run just starts the app.
 rem    Snail.bat --reset-admin   forgot the admin password? Set a new one.
 rem    Snail.bat --setup         run the setup questions again.
+rem    Snail.bat --update        pull the latest SnailSynk from GitHub and update this install in place.
 rem    Snail.bat --uninstall     remove SnailSynk, but keep your notes and the uploaded files.
 rem    Snail.bat --clean-install erase EVERYTHING (notes and uploads too), then install from scratch.
 rem    Snail.bat --help          this list.
-rem    (add --yes to --uninstall / --clean-install to skip the "are you sure?" question)
+rem    (add --yes to --update / --uninstall / --clean-install to skip the "are you sure?" question)
 rem
 rem  This file finds Python, installs the packages and makes the shortcut. The
 rem  questions, the admin account and the summary live in app\setup_wizard.py
@@ -30,6 +31,7 @@ if /i "%~1"=="--help" goto :help
 if /i "%~1"=="-h" goto :help
 if /i "%~1"=="/?" goto :help
 if /i "%~1"=="--reset-admin" goto :reset_admin
+if /i "%~1"=="--update" goto :update
 if /i "%~1"=="--uninstall" goto :uninstall
 if /i "%~1"=="--clean-install" goto :clean_install
 if /i "%~1"=="--setup" del "install.loc" >nul 2>&1
@@ -46,10 +48,11 @@ echo.
 echo     Snail.bat                 first run: setup, then start. After that: just start.
 echo     Snail.bat --reset-admin   forgot the admin password? pick a new one.
 echo     Snail.bat --setup         run the setup questions again.
+echo     Snail.bat --update        pull the latest SnailSynk from GitHub and update this install in place.
 echo     Snail.bat --uninstall     remove SnailSynk, keeping your notes and uploaded files.
 echo     Snail.bat --clean-install erase everything (notes and uploads too), install from scratch.
 echo     Snail.bat --help          show this.
-echo       (add --yes to --uninstall or --clean-install to skip the question)
+echo       (add --yes to --update, --uninstall or --clean-install to skip the question)
 echo.
 popd
 exit /b 0
@@ -222,6 +225,68 @@ echo.
 pause
 popd
 exit /b %RC%
+
+
+rem ============================================================================
+rem  Update: pulls the latest version from GitHub (Set-and-Run\upgrade.py keeps
+rem  .env, instance\ and uploaded files untouched)
+rem ============================================================================
+:update
+call :find_python
+if not defined PY goto :no_python
+set "CLEAN_YES="
+if /i "%~2"=="--yes" set "CLEAN_YES=1"
+if /i "%~2"=="-y" set "CLEAN_YES=1"
+cls
+%PY% "%WIZARD%" banner --sub "update"
+if defined CLEAN_YES goto :update_go
+echo   This downloads the latest SnailSynk from GitHub and replaces the app files.
+echo   Your .env, instance data and uploaded files are left untouched.
+set "ANSWER="
+set /p "ANSWER=  -> Proceed with update? (y/N): "
+if /i not "%ANSWER%"=="y" if /i not "%ANSWER%"=="yes" goto :update_cancelled
+:update_go
+echo.
+echo [1/2] Fetching the latest version
+%PY% -B "Set-and-Run\upgrade.py" --target "%CD%" --yes
+if errorlevel 1 goto :update_failed
+echo   [OK] Files updated.
+
+echo.
+echo [2/2] Making sure dependencies are up to date
+%PY% -m pip install -r requirements.txt --disable-pip-version-check -q
+if not errorlevel 1 goto :update_deps_ok
+%PY% -m pip install -r requirements.txt --user --disable-pip-version-check -q
+if errorlevel 1 goto :update_deps_warn
+:update_deps_ok
+echo   [OK] Dependencies are up to date.
+goto :update_done
+:update_deps_warn
+echo   [!] Some dependencies may not have installed cleanly.
+:update_done
+
+echo.
+echo   [OK] Update complete. Restart SnailSynk to use the new version.
+echo.
+pause
+popd
+exit /b 0
+
+:update_failed
+echo.
+echo   [x] Update failed. Your existing installation was left as-is.
+echo.
+pause
+popd
+exit /b 1
+
+:update_cancelled
+echo.
+echo   Update cancelled.
+echo.
+pause
+popd
+exit /b 1
 
 
 rem ============================================================================

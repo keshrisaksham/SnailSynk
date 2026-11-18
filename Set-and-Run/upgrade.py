@@ -10,6 +10,7 @@ Can be run standalone — no dependencies beyond the Python standard library.
 Usage:
     python upgrade.py
     python upgrade.py --target "C:\\path\\to\\SnailSynk"
+    python upgrade.py --target "C:\\path\\to\\SnailSynk" --yes   # skip the confirmation prompt
 """
 
 import os
@@ -225,6 +226,11 @@ def main():
         default=None,
         help="Path to the existing SnailSynk installation folder.",
     )
+    parser.add_argument(
+        "--yes", "-y",
+        action="store_true",
+        help="Skip the 'Proceed with upgrade?' confirmation (for scripted/automated runs).",
+    )
     args = parser.parse_args()
 
     print_header()
@@ -248,10 +254,13 @@ def main():
     print(f"    • Files with extensions: {', '.join(sorted(PRESERVE_EXTENSIONS))}")
     print()
     print("  Everything else will be replaced with the latest version from GitHub.")
-    confirm = input("  -> Proceed with upgrade? (y/N): ").strip().lower()
-    if confirm not in ("y", "yes"):
-        print("\n  Upgrade cancelled.")
-        sys.exit(0)
+    if args.yes:
+        print("  -> Proceed with upgrade? (y/N): y  (--yes)")
+    else:
+        confirm = input("  -> Proceed with upgrade? (y/N): ").strip().lower()
+        if confirm not in ("y", "yes"):
+            print("\n  Upgrade cancelled.")
+            sys.exit(0)
     print()
 
     # 3. Download and extract

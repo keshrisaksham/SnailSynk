@@ -7,10 +7,11 @@
 #                              Every later run just starts the app.
 #   ./Set-and-Run/Snail.sh --reset-admin   forgot the admin password? Set a new one.
 #   ./Set-and-Run/Snail.sh --setup         run the setup questions again.
+#   ./Set-and-Run/Snail.sh --update        pull the latest SnailSynk from GitHub and update this install in place.
 #   ./Set-and-Run/Snail.sh --uninstall     remove SnailSynk, but keep your notes and the uploaded files.
 #   ./Set-and-Run/Snail.sh --clean-install erase EVERYTHING (notes and uploads too), then install from scratch.
 #   ./Set-and-Run/Snail.sh --help          this list.
-#   (add --yes to --uninstall / --clean-install to skip the "are you sure?" question)
+#   (add --yes to --update / --uninstall / --clean-install to skip the "are you sure?" question)
 #
 # This script does what only a shell can (Python, packages, shortcuts). The questions,
 # the admin account and the summary live in app/setup_wizard.py.
@@ -89,10 +90,11 @@ usage() {
     say "  ./Set-and-Run/Snail.sh                 first run: setup, then start. After that: just start."
     say "  ./Set-and-Run/Snail.sh --reset-admin   forgot the admin password? pick a new one."
     say "  ./Set-and-Run/Snail.sh --setup         run the setup questions again."
+    say "  ./Set-and-Run/Snail.sh --update        pull the latest SnailSynk from GitHub and update this install in place."
     say "  ./Set-and-Run/Snail.sh --uninstall     remove SnailSynk, keeping your notes and uploaded files."
     say "  ./Set-and-Run/Snail.sh --clean-install erase everything (notes and uploads too) and install from scratch."
     say "  ./Set-and-Run/Snail.sh --help          show this."
-    note "Add --yes to --uninstall or --clean-install to skip the question."
+    note "Add --yes to --update, --uninstall or --clean-install to skip the question."
     echo
 }
 
@@ -292,6 +294,52 @@ EOF
 }
 
 # --------------------------------------------------------------------------------
+# Update (pulls the latest version from GitHub; keeps .env, instance/ and uploaded files)
+# --------------------------------------------------------------------------------
+update_routine() {
+    banner "update"
+    if [ "$ASSUME_YES" -ne 1 ]; then
+        say "  This downloads the latest SnailSynk from GitHub and replaces the app files."
+        note "Your .env, instance/ data and uploaded files are left untouched."
+        local ans
+        read -rp "  -> Proceed with update? (y/N): " ans || ans=""
+        case "$ans" in
+            y|Y|yes|YES) ;;
+            *) echo; say "  Update cancelled."; return 1 ;;
+        esac
+    fi
+    if ! command -v python3 &> /dev/null; then
+        bad "python3 wasn't found. Run ./Set-and-Run/Snail.sh --setup first."
+        return 1
+    fi
+
+    step 1 2 "Fetching the latest version"
+    if ! as_user python3 -B Set-and-Run/upgrade.py --target "$(pwd)" --yes; then
+        bad "Update failed. Your existing installation was left as-is."
+        return 1
+    fi
+    ok "Files updated."
+
+    step 2 2 "Making sure dependencies are up to date"
+    if [ -f requirements.txt ]; then
+        local PYVER PIP_FLAGS=""
+        PYVER=$(python3 -c "import sys; print('%d.%d' % sys.version_info[:2])")
+        if [ -f "/usr/lib/python${PYVER}/EXTERNALLY-MANAGED" ] || [ -f "/usr/lib/python3/EXTERNALLY-MANAGED" ]; then
+            PIP_FLAGS="--break-system-packages"
+        fi
+        if as_user python3 -m pip install -r requirements.txt $PIP_FLAGS --quiet; then
+            ok "Dependencies are up to date."
+        else
+            warn "Some dependencies may not have installed cleanly."
+            note "If this is a system-wide install, try:  sudo ./Set-and-Run/Snail.sh --update --yes"
+        fi
+    fi
+
+    echo
+    ok "Update complete. Restart SnailSynk to use the new version."
+}
+
+# --------------------------------------------------------------------------------
 # Uninstall / clean install (the deleting itself is done by Set-and-Run/cleanup.py)
 # --------------------------------------------------------------------------------
 # Removes the 'snailsynk' command and the shortcuts that setup created.
@@ -419,6 +467,9 @@ case "${1:-}" in
     --set-icon)
         create_desktop_icon
         exit ;;
+    --update)
+        rc=0; update_routine || rc=$?
+        exit "$rc" ;;
     --uninstall)
         # the whole case is read before it runs, so it is safe that this script deletes itself on the way out
         rc=0; uninstall_routine || rc=$?
