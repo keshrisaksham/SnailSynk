@@ -20,7 +20,30 @@ Usage:
 """
 
 import ssl
+import logging
 import socket as _socket
+
+logger = logging.getLogger('porter')
+
+# How long to wait for the first byte of a new connection before giving up.
+# Real browsers send it the instant the TCP handshake completes; a slow/stalled
+# peer (or a bare port probe) is the only thing that should ever hit this.
+PEEK_TIMEOUT = 10
+
+# Errors a client going away mid-connection routinely causes - expected, not worth
+# a warning. Anything else that reaches these except blocks is logged loudly,
+# since it means a real client got silently disconnected with no HTTP response.
+_BENIGN_ERRORS = (ConnectionError, TimeoutError, OSError, ssl.SSLError)
+
+
+def _log_drop(stage, address, exc):
+    """A connection was closed without a response. Benign (peer disconnected,
+    timed out waiting for data) goes to debug; anything else is a real bug and
+    should be visible in the server log instead of vanishing silently."""
+    if isinstance(exc, _BENIGN_ERRORS):
+        logger.debug("Porter: dropped connection from %s during %s (%s)", address, stage, exc)
+    else:
+        logger.warning("Porter: dropped connection from %s during %s", address, stage, exc_info=exc)
 
 
 class Porter:
@@ -50,6 +73,7 @@ class Porter:
         try:
             import gevent
             self._patch_gevent()
+            logger.info("Porter active (gevent): plain HTTP on this port will redirect to HTTPS.")
             return
         except ImportError:
             pass
@@ -58,11 +82,15 @@ class Porter:
         try:
             import eventlet
             self._patch_eventlet(eventlet)
+            logger.info("Porter active (eventlet): plain HTTP on this port will redirect to HTTPS.")
             return
         except ImportError:
             pass
 
-        # Fallback: stdlib ssl (werkzeug threading mode)
+        # Fallback: stdlib ssl (werkzeug threading mode) - not implemented, so plain HTTP
+        # requests on this port will just fail the TLS handshake instead of redirecting.
+        logger.warning("Porter: neither gevent nor eventlet is available; HTTP->HTTPS "
+                        "auto-redirect on this port is disabled.")
         self._patch_stdlib_ssl()
 
     # ------------------------------------------------------------------
@@ -85,27 +113,37 @@ class Porter:
 
                 def dual_protocol_handler(client_socket, address):
                     try:
-                        client_socket.settimeout(5)
+                        client_socket.settimeout(PEEK_TIMEOUT)
                         first_byte = client_socket.recv(1, _socket.MSG_PEEK)
-
-                        if not first_byte:
-                            client_socket.close()
-                            return
-
-                        if first_byte[0] == 0x16:
-                            # TLS ClientHello → proceed normally with SSL
-                            client_socket.settimeout(None)
-                            return original_wrap(client_socket, address)
-                        else:
-                            # Plain HTTP → redirect to HTTPS
-                            porter._redirect_to_https(client_socket)
-                            return
-
-                    except Exception:
+                    except Exception as e:
+                        _log_drop("peek", address, e)
                         try:
                             client_socket.close()
                         except Exception:
                             pass
+                        return
+
+                    if not first_byte:
+                        # Peer connected then closed without sending anything (port probe, etc).
+                        client_socket.close()
+                        return
+
+                    if first_byte[0] == 0x16:
+                        # TLS ClientHello → proceed normally with SSL
+                        client_socket.settimeout(None)
+                        try:
+                            return original_wrap(client_socket, address)
+                        except Exception as e:
+                            _log_drop("TLS handshake", address, e)
+                            try:
+                                client_socket.close()
+                            except Exception:
+                                pass
+                            return
+                    else:
+                        # Plain HTTP → redirect to HTTPS
+                        porter._redirect_to_https(client_socket, address)
+                        return
 
                 server_self.wrap_socket_and_handle = dual_protocol_handler
 
@@ -145,7 +183,7 @@ class Porter:
     # ------------------------------------------------------------------
     # Shared HTTP → HTTPS redirect logic
     # ------------------------------------------------------------------
-    def _redirect_to_https(self, sock):
+    def _redirect_to_https(self, sock, address=None):
         """Read the HTTP request and send a 301 redirect to HTTPS."""
         try:
             data = sock.recv(4096).decode("utf-8", errors="ignore")
@@ -160,8 +198,8 @@ class Porter:
                 "\r\n"
             )
             sock.sendall(response.encode())
-        except Exception:
-            pass
+        except Exception as e:
+            _log_drop("HTTP->HTTPS redirect", address, e)
         finally:
             try:
                 sock.close()
@@ -213,7 +251,7 @@ class _DualProtocolServerSocket:
     - HTTP connections → 301 redirected and closed (then loop)
     """
 
-    _PEEK_TIMEOUT = 5  # seconds to wait for first byte
+    _PEEK_TIMEOUT = PEEK_TIMEOUT  # seconds to wait for first byte
 
     def __init__(self, sock, certfile, keyfile, https_port,
                  original_wrap_ssl=None):
@@ -258,9 +296,10 @@ class _DualProtocolServerSocket:
                     return ssl_sock, addr
                 else:
                     # Plain HTTP → redirect
-                    self._porter._redirect_to_https(client_sock)
+                    self._porter._redirect_to_https(client_sock, addr)
 
-            except Exception:
+            except Exception as e:
+                _log_drop("peek/TLS handshake", addr, e)
                 try:
                     client_sock.close()
                 except Exception:
